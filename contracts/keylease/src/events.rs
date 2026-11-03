@@ -94,3 +94,14 @@ pub fn nft_transfer(id: u64, old: &AccountId, new: &AccountId, memo: Option<&str
     }
     emit_nep171("nft_transfer", data);
 }
+
+pub fn sub_lease_created(id: u64, l: &Lease) {
+    emit(
+        "sub_lease_created",
+        json!({
+            "lease_id": id.to_string(), "parent": l.parent.map(|p| p.to_string()), "depth": l.depth,
+            "issuer": l.issuer, "grantee": l.grantee, "calls": l.calls_total,
+            "expires_at": l.expires_at.to_string(), "endpoints": l.endpoints,
+        }),
+    );
+}

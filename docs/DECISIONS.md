@@ -216,3 +216,19 @@ from crates.io stays as the fallback.
   Key Pass returns to the sender when the receiver's `nft_on_transfer` returns true or fails.
 - A revoked lease cannot be transferred (nothing to pass on); an expired or used-up one can, and stays
   refused for its new holder.
+
+### E-020 (PR 10b) Sub-leases and cascading revoke
+
+- `create_sub_lease(parent, grantee, calls, expires_at, endpoints)`: the parent's holder hands on a slice.
+  Calls are capped by what _every_ lease above has left (not only the parent), expiry by the parent's
+  (so by every ancestor's), endpoints by the parent's set; depth ≤ 3, ≤ 10 children per lease.
+- "Revoking a parent revokes every child in the same call": the gate walks up to 3 leases above at every
+  use, so one `revoke` on a lease refuses its whole subtree from that block on. Nothing is written per
+  child, so the revoke costs the same with 1 or 1,000 descendants (no unbounded loop, no gas cliff).
+  Sub-leases copy the parent's key and owner epochs, so `revoke_all` and the panic button reach them too.
+- A use counts on the sub-lease and on every lease above it, so the whole tree never spends more than
+  the key owner granted. "Rate" in the brief's sense is this call quota; there is no time-based rate
+  limit in the contract.
+- The key owner may revoke any lease in the tree; the issuer of a sub-lease may revoke it. Sub-leases are
+  not transferable (a Key Pass is the owner's choice, E-019) and their storage is paid by the issuer.
+- Web tree view and SDK `lease.subLease()` are not in this PR.

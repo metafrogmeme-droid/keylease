@@ -248,7 +248,7 @@ fn revoked_wins_over_expired_and_used_up() {
 }
 
 #[test]
-#[should_panic(expected = "only the key owner can revoke this lease")]
+#[should_panic(expected = "only the key owner or the issuer can revoke this lease")]
 fn only_owner_revokes() {
     let mut s = setup();
     ctx("bob.testnet", T0, 0);

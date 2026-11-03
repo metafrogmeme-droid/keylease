@@ -180,9 +180,20 @@ impl KeyLease {
         lease.calls_used += 1;
         let call = lease.calls_used;
         let allowed = lease.endpoints.clone();
+        let mut up = lease.parent;
+        let key_id = lease.key_id;
+        // The call counts on every lease above a sub-lease too (check_internal allowed each of them).
+        while let Some(id) = up {
+            let p = self
+                .leases
+                .get_mut(&id)
+                .unwrap_or_else(|| refuse(Refusal::ParentRevoked));
+            p.calls_used += 1;
+            up = p.parent;
+        }
         let key = self
             .keys
-            .get(&lease.key_id)
+            .get(&key_id)
             .unwrap_or_else(|| refuse(Refusal::LeaseRevoked));
 
         let input = json!({
