@@ -9,7 +9,8 @@
  *   GET  /debug/headers        returns the request headers, key included: a deliberately leaky endpoint
  *                              that shows the proxy's tripwire withholding an answer that carries the key
  *
- * Every request needs `Authorization: Bearer <MOCK_API_KEY>`; the key comes from env only.
+ * Every request needs `Authorization: Bearer <MOCK_API_KEY>`; the key comes from env only. Web APIs only (no
+ * Node built-ins), so the same code runs as a Vercel edge function (apps/web/functions/mock.ts).
  *
  * Shapes follow the OpenAI API reference, as NEAR AI Cloud and the other OpenAI-compatible providers do:
  * - chat completion object: https://platform.openai.com/docs/api-reference/chat/object
@@ -17,8 +18,6 @@
  * - list models / model object: https://platform.openai.com/docs/api-reference/models/list
  * - error object `{ error: { message, type, param, code } }`: https://platform.openai.com/docs/guides/error-codes
  */
-import { timingSafeEqual } from "node:crypto";
-
 export interface Env {
   /** The demo key; requests without it are refused. */
   readonly MOCK_API_KEY?: string | undefined;
@@ -60,12 +59,14 @@ export function headerObject(headers: Headers): Record<string, string> {
   return out;
 }
 
-/** Constant-time check of the bearer token. */
+/** Constant-time check of the bearer token (time depends on the key's length only). */
 export function authorized(header: string | null, key: string | undefined): boolean {
   if (!key || !header?.startsWith("Bearer ")) return false;
-  const got = Buffer.from(header.slice("Bearer ".length));
-  const want = Buffer.from(key);
-  return got.length === want.length && timingSafeEqual(got, want);
+  const got = new TextEncoder().encode(header.slice("Bearer ".length));
+  const want = new TextEncoder().encode(key);
+  let diff = got.length ^ want.length;
+  for (let i = 0; i < want.length; i += 1) diff |= (got[i] ?? 0) ^ (want[i] ?? 0);
+  return diff === 0;
 }
 
 async function readJson(req: Request): Promise<unknown> {

@@ -93,18 +93,24 @@ export interface RelayDeps {
 
 const shared = new Limiter();
 
-function json(status: number, body: object): Response {
+export function json(status: number, body: object): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 }
 
-function sameOrigin(req: Request): boolean {
+/** True unless a browser says the request comes from another site. */
+export function sameOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
   const site = req.headers.get("sec-fetch-site");
   if (site !== null && site !== "same-origin") return false;
   return origin === null || origin === new URL(req.url).origin;
+}
+
+/** The caller's IP as the host reports it (Vercel sets x-real-ip; serve.ts sets it from the socket). */
+export function clientOf(req: Request): string {
+  return req.headers.get("x-real-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "?";
 }
 
 export async function relayPubkey(req: Request, deps: RelayDeps = {}): Promise<Response> {

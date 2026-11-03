@@ -60,6 +60,35 @@ describe("Vercel build output", () => {
     expect(await res.json()).toEqual({ pubkey: "cd".repeat(32) });
   });
 
+  it("routes /mock/* to a second self-contained edge function", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kl-vercel-"));
+    const out = join(dir, "out");
+    mkdirSync(out);
+    writeFileSync(join(out, "index.html"), "<html></html>");
+    const dest = join(dir, "output");
+    await writeOutput(out, dest);
+    const config = JSON.parse(readFileSync(join(dest, "config.json"), "utf8")) as {
+      routes: { src?: string; dest?: string; handle?: string }[];
+    };
+    const mockRoute = config.routes.findIndex((r) => r.dest === "/api/mock?path=$1");
+    expect(mockRoute).toBeGreaterThan(0);
+    expect(mockRoute).toBeLessThan(config.routes.findIndex((r) => r.handle === "filesystem"));
+    expect(new RegExp(config.routes[mockRoute]?.src ?? "").exec("/mock/v1/models")?.[1]).toBe("v1/models");
+
+    const code = readFileSync(join(dest, "functions", "api", "mock.func", "index.js"), "utf8");
+    expect(code).not.toMatch(/^import /mu);
+    expect(code).not.toContain("node:");
+    const mod = (await import(
+      pathToFileURL(join(dest, "functions", "api", "mock.func", "index.js")).href
+    )) as {
+      default: (r: Request) => Promise<Response>;
+    };
+    // No MOCK_API_KEY in this test's env: the function answers, marked as a demo, and refuses.
+    const res = await mod.default(new Request("https://kl.example/api/mock?path=v1/models"));
+    expect(res.headers.get("x-keylease-demo")).toMatch(/mock API/);
+    expect([401, 500]).toContain(res.status);
+  });
+
   it("refuses to run without a static export", async () => {
     const dir = mkdtempSync(join(tmpdir(), "kl-vercel-"));
     await expect(writeOutput(join(dir, "missing"), join(dir, "o"))).rejects.toThrow(/static export/);

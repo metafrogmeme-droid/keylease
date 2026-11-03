@@ -33,6 +33,8 @@ describe("auth", () => {
     expect(authorized(KEY, KEY)).toBe(false);
     expect(authorized(`Bearer ${KEY}x`, KEY)).toBe(false);
     expect(authorized(`Bearer ${KEY}`, undefined)).toBe(false);
+    expect(authorized(`Bearer ${KEY.slice(0, -1)}`, KEY)).toBe(false);
+    expect(authorized("Bearer ", KEY)).toBe(false);
   });
 });
 

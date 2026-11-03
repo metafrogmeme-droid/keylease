@@ -13,6 +13,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@keylease/mock-api": "workspace:*",
     "@keylease/outlayer": "workspace:*",
     "@near-wallet-selector/core": "10.1.4",
     "@near-wallet-selector/ethereum-wallets": "10.1.4",
