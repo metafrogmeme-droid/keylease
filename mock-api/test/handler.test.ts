@@ -98,6 +98,17 @@ describe("routes", () => {
     expect((body["headers"] as Record<string, string>)["authorization"]).toBe(`Bearer ${KEY}`);
   });
 
+  it("answers HEAD like GET, headers only (curl -I)", async () => {
+    const res = await handle(req("HEAD", "/v1/models"), env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/json/);
+    expect(await res.text()).toBe("");
+    expect((await handle(req("HEAD", "/debug/headers"), env)).status).toBe(200);
+    expect((await handle(req("HEAD", "/v1/models", undefined, null), env)).status).toBe(401);
+    expect((await handle(req("HEAD", "/v1/keys"), env)).status).toBe(404);
+    expect((await handle(req("HEAD", "/echo"), env)).status).toBe(404); // POST-only route
+  });
+
   it("refuses unknown routes, bad JSON and large bodies", async () => {
     expect((await call(req("GET", "/v1/keys"))).status).toBe(404);
     expect((await call(req("DELETE", "/echo"))).status).toBe(404);

@@ -113,6 +113,9 @@ Expect `{"object":"list","data":[{"id":"keylease-mock-1",…}]}` and
 `<mock host>` is then `<app>/mock`, a host that does not change on restarts. The 20-per-minute limit counts
 per calling IP, and OutLayer's workers call from a few IPs, so a busy demo minute can see `429` answers.
 
+_Run 2026-11-03_ on `https://keylease.vercel.app` (Patrick): `GET /mock/v1/models` answered 200 with the
+key and 401 without it. `HEAD` (the `curl -I` line) answered 404 then; since PR 10c it answers like `GET`.
+
 **3. Deploy** contract `keylease.<you>.testnet` and the proxy URL from step 2 (the CLI checks the URL the
 way OutLayer's worker fetches it, sha256 included, before anything goes on chain).
 
@@ -144,6 +147,9 @@ sealed     profile main under <you>.testnet, lock Predecessor[keylease.<you>.tes
 key        <key id, 0 on a fresh contract>
 tx         https://testnet.nearblocks.io/txns/<hash>
 ```
+
+_Run 2026-11-03_ (Patrick) with `--base-url https://keylease.vercel.app/mock`: key id 0,
+[add-key tx](https://testnet.nearblocks.io/txns/Z1Wr9SXZ2JE1BaB47V3xvAjBykz27RE1bZQ6uLPufxt).
 
 **5. Lease** three calls to yourself for one hour, on the chat endpoint and the tripwire demo endpoint
 
@@ -252,7 +258,8 @@ After steps 0-4 (contract, proxy, demo API, the demo key sealed with `--base-url
 the operator box. It creates a fresh 3-call lease to yourself on `/v1/chat/completions` and
 `/debug/headers`, plays eight prompt-injection attacks as the agent, revokes before the last one, and
 rewrites `docs/ATTACK_LOG.md` with expected and actual results (codes, HTTP status and tx links only).
-Costs a few calls of 0.025 NEAR (unused compute refunded) plus gas.
+Costs a few calls of 0.025 NEAR (unused compute refunded) plus gas. The script is `examples/src/attack.ts`
+(the `examples/` folder at the repo root, not under `packages/`); run it from the repo root.
 
 ```sh
 export KEYLEASE_CONTRACT_ID=keylease.<you>.testnet KEYLEASE_KEY_ID=<key id from step 4>
@@ -274,6 +281,9 @@ A8 PASS  POST /v1/chat/completions  expected refused `lease_revoked` (no call us
 
 Send back the regenerated `docs/ATTACK_LOG.md` (it holds no secret) to replace the plan in the repo. The
 smallest agent, for a lease you shared: `KEYLEASE_LEASE_ID=<n> pnpm --filter @keylease/examples agent "Hi"`.
+
+_Run 2026-11-03_ (Patrick, commit `0826c78`, key 0, lease 0, demo API on `keylease.vercel.app/mock`): 8/8 as
+expected, [docs/ATTACK_LOG.md](ATTACK_LOG.md) (PR #28).
 
 ## Web app, by hand (PR 7)
 
@@ -327,6 +337,11 @@ both the measured run and a human estimate (4 s per click or field) stay under 6
 
 Vercel Hobby, from this repo. Patrick logs in and deploys; nothing here holds a Vercel token.
 
+**Live:** `https://keylease.vercel.app` (project `rune-claw/keylease`, Root Directory `apps/web`, deployed
+prebuilt on 2026-11-03). Checked on it so far: the demo API at `/mock` (step 2c), the demo key sealed
+against it (step 4) and the attack run. Still open: the header and relay checks below, and the real-wallet
+run ("Web app, by hand" steps 1-9 on this URL).
+
 Project settings (once): **Root Directory** `apps/web`, **Framework Preset** Other, **Node.js** 22.x.
 `apps/web/vercel.json` sets the install and build commands; the build writes `.vercel/output` (Build
 Output API v3: static pages, the edge function `/api/secrets/pubkey`, response headers). Environment
@@ -342,6 +357,8 @@ variables (Production and Preview):
 npx vercel@latest login          # or connect the GitHub repo in the Vercel dashboard
 npx vercel@latest link --cwd apps/web
 npx vercel@latest deploy --cwd apps/web            # preview; add --prod for production
+# or build here and upload the output (how the live deploy was made):
+npx vercel@latest build --prod --cwd apps/web && npx vercel@latest deploy --prebuilt --prod --cwd apps/web
 ```
 
 Checks against the deployed URL `<app>`:
@@ -361,7 +378,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<app>/api/secrets/pubke
 # 403
 ```
 
-Then run "Web app, by hand" steps 1-4 on `https://<app>` instead of the local server.
+Then run "Web app, by hand" steps 1-9 on `https://<app>` instead of the local server.
 
 ## Attestation (PR 12, planned)
 

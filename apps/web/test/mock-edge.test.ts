@@ -28,6 +28,13 @@ describe("demo API on the web host", () => {
     expect(rewritten.status).toBe(200);
   });
 
+  it("answers HEAD /mock/v1/models like GET, marked as a demo (curl -I)", async () => {
+    const res = await serveMock(req("/mock/v1/models", { method: "HEAD", headers: auth }), deps());
+    expect(res.status).toBe(200);
+    expect(res.headers.get(DEMO_HEADER)).toMatch(/mock API/);
+    expect(await res.text()).toBe("");
+  });
+
   it("refuses without the key, and without a key configured on the host", async () => {
     expect((await serveMock(req("/mock/v1/models"), deps())).status).toBe(401);
     const unset = await serveMock(req("/mock/v1/models", { headers: auth }), {
