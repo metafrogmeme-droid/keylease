@@ -89,3 +89,23 @@ test("wallet picker: keyboard only, six wallets, WalletConnect says not configur
   expect(await w.violations()).toEqual([]);
   expect(w.problems.filter((p) => !/wallet|ethereum|provider/i.test(p))).toEqual([]);
 });
+
+test("pubkey relay on the app's own origin: refuses a key value and other origins, before any upstream call", async ({
+  request,
+}) => {
+  const body = {
+    accessor: { type: "WasmHash", hash: "ab".repeat(32) },
+    owner: "alice.testnet",
+    profile: "kl-000000000000",
+    secrets_json: JSON.stringify({ KL_API_KEY: "not-empty" }),
+  };
+  const withValue = await request.post("/api/secrets/pubkey", { data: body });
+  expect(withValue.status()).toBe(400);
+  expect(await withValue.text()).toContain("values must be empty");
+  const crossSite = await request.post("/api/secrets/pubkey", {
+    data: { ...body, secrets_json: '{"KL_API_KEY":""}' },
+    headers: { origin: "https://evil.example" },
+  });
+  expect(crossSite.status()).toBe(403);
+  expect((await request.get("/api/secrets/pubkey")).status()).toBe(405);
+});

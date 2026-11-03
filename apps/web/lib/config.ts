@@ -7,14 +7,15 @@ export interface WebConfig {
   readonly network: "testnet";
   readonly contractId: string;
   readonly rpcUrl: string;
-  readonly outlayerApi: string;
+  /** Same-origin relay for OutLayer's `/secrets/pubkey` (E-017): OutLayer's API refuses browsers (CORS). */
+  readonly pubkeyRelay: string;
   /** Reown (WalletConnect) project id; null when not set, and the WalletConnect option says so. */
   readonly reownProjectId: string | null;
 }
 
 export const FAUCET_URL = "https://docs.near.org/tools/faucet";
 export const DEFAULT_RPC = "https://rpc.testnet.near.org";
-export const DEFAULT_OUTLAYER_API = "https://testnet-api.outlayer.ai";
+export const PUBKEY_RELAY = "/api";
 
 export interface RawEnv {
   readonly network?: string | undefined;
@@ -38,7 +39,7 @@ export function parseConfig(raw: RawEnv): WebConfig {
     network,
     contractId,
     rpcUrl: DEFAULT_RPC,
-    outlayerApi: DEFAULT_OUTLAYER_API,
+    pubkeyRelay: PUBKEY_RELAY,
     reownProjectId: reown === "" ? null : reown,
   };
 }

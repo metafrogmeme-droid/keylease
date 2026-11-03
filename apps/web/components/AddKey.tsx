@@ -128,7 +128,7 @@ export function AddKey({ onAdded }: { readonly onAdded?: () => void }) {
 
 export function errorText(err: unknown): string {
   if (err instanceof KeystoreUnreachable)
-    return "OutLayer's keystore did not answer this page, so nothing was sent. Use `kl add-key` for now (docs/VERIFY.md step 4).";
+    return "OutLayer's keystore could not be reached from this page, so nothing was sent. Try again, or use `kl add-key` (docs/VERIFY.md step 4).";
   if (err instanceof TypeError) return "The network did not answer, so nothing was sent. Try again.";
   const text = err instanceof Error ? err.message : String(err);
   if (/reject|cancel|closed/i.test(text)) return "The wallet declined the transactions. Nothing was added.";

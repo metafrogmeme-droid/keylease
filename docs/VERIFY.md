@@ -238,16 +238,59 @@ NEXT_PUBLIC_KEYLEASE_CONTRACT_ID=keylease.<you>.testnet pnpm --filter @keylease/
 node apps/web/scripts/serve.ts apps/web/out 4173       # then open http://127.0.0.1:4173
 ```
 
+The local server includes the same OutLayer pubkey relay as the hosted app (`POST /api/secrets/pubkey`,
+E-017), so this machine needs outbound HTTPS to `testnet-api.outlayer.ai`.
+
 1. TESTNET banner names `keylease.<you>.testnet`; the strip shows Connect · Add key · Share.
 2. Connect wallet → Meteor, HOT, Intear or MetaMask (MyNearWallet works for Add key but leaves the page,
    so it cannot finish Test key). Expect `Connected as <account>` and step 1 ✓.
 3. Add key: provider OpenAI-compatible, base URL `https://<mock host>/v1`, paste the demo key, label `web
 demo`, Seal and add key, confirm two transactions. Expect the field empty at once, then `✓ Key added.`
-   with two tx links. If instead you see `OutLayer's keystore did not answer this page`, the API refuses
-   this origin (Q-011); use step 4 (`kl add-key`) meanwhile.
+   with two tx links. If you see `OutLayer's keystore could not be reached from this page`, the relay got no
+   answer from OutLayer; try again, or use step 4 (`kl add-key`).
 4. Your keys → Test key on `web demo`, confirm two transactions (a one-call lease to yourself, then the
    call on `/models`, 0.025 NEAR). Expect `✓ The key works: the API answered HTTP 200 through the proxy.`
    and a `receipt tx` link.
+
+## Hosted on Vercel (D3, E-017)
+
+Vercel Hobby, from this repo. Patrick logs in and deploys; nothing here holds a Vercel token.
+
+Project settings (once): **Root Directory** `apps/web`, **Framework Preset** Other, **Node.js** 22.x.
+`apps/web/vercel.json` sets the install and build commands; the build writes `.vercel/output` (Build
+Output API v3: static pages, the edge function `/api/secrets/pubkey`, response headers). Environment
+variables (Production and Preview):
+
+| Name                               | Value                                     |
+| ---------------------------------- | ----------------------------------------- |
+| `NEXT_PUBLIC_NEAR_NETWORK`         | `testnet` (anything else fails the build) |
+| `NEXT_PUBLIC_KEYLEASE_CONTRACT_ID` | `keylease.<you>.testnet`                  |
+| `NEXT_PUBLIC_REOWN_PROJECT_ID`     | empty (WalletConnect off, E-016)          |
+
+```sh
+npx vercel@latest login          # or connect the GitHub repo in the Vercel dashboard
+npx vercel@latest link --cwd apps/web
+npx vercel@latest deploy --cwd apps/web            # preview; add --prod for production
+```
+
+Checks against the deployed URL `<app>`:
+
+```sh
+curl -sI https://<app>/ | grep -iE 'content-security-policy|x-frame-options|x-content-type'
+# content-security-policy: frame-ancestors 'none'   x-frame-options: DENY   x-content-type-options: nosniff
+
+B='{"accessor":{"type":"WasmHash","hash":"<proxy sha256>"},"owner":"<you>.testnet","profile":"kl-check","secrets_json":"{\"KL_API_KEY\":\"\"}"}'
+curl -s -X POST https://<app>/api/secrets/pubkey -H 'content-type: application/json' -d "$B"
+# {"pubkey":"<64 hex>"}
+X='{"accessor":{"type":"WasmHash","hash":"<proxy sha256>"},"owner":"<you>.testnet","profile":"kl-check","secrets_json":"{\"KL_API_KEY\":\"x\"}"}'
+curl -s -X POST https://<app>/api/secrets/pubkey -H 'content-type: application/json' -d "$X"
+# {"error":"secrets_json values must be empty: the relay never carries a key"}
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<app>/api/secrets/pubkey \
+  -H 'content-type: application/json' -H 'origin: https://example.org' -d "$B"
+# 403
+```
+
+Then run "Web app, by hand" steps 1-4 on `https://<app>` instead of the local server.
 
 ## Attestation (PR 12, planned)
 

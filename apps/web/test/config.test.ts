@@ -7,7 +7,7 @@ describe("parseConfig (T9: testnet only)", () => {
       network: "testnet",
       contractId: "keylease.testnet",
       rpcUrl: "https://rpc.testnet.near.org",
-      outlayerApi: "https://testnet-api.outlayer.ai",
+      pubkeyRelay: "/api",
       reownProjectId: null,
     });
   });

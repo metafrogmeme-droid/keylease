@@ -61,7 +61,7 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 Testnet run hosting: the proxy wasm is a release asset of the public repo
 [`metafrogmeme-droid/keylease-wasm`](https://github.com/metafrogmeme-droid/keylease-wasm) (`wasm-<commit>`,
 sha256 checked by `kl` and by OutLayer); the demo API runs on the owner's laptop behind a Cloudflare quick
-tunnel. Steps in docs/VERIFY.md 2 and 2b. Testnet NEAR for gas: the
+tunnel. Steps in docs/VERIFY.md 2 and 2b. The web app is hosted on Vercel (static pages plus one same-origin relay for OutLayer's keystore key, which browsers cannot fetch directly): docs/VERIFY.md "Hosted on Vercel". Testnet NEAR for gas: the
 [NEAR testnet faucet](https://docs.near.org/tools/faucet).
 
 ## Disclosure
