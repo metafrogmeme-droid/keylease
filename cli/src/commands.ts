@@ -138,7 +138,9 @@ export async function addKey(s: Settings, o: Opts): Promise<number> {
   const secrets = secretsJson(apiKey);
   const pubkey = await fetchKeystorePubkey(
     s.api,
-    pubkeyRequest(c.me.accountId, profile, cfg.proxy_hash, secrets),
+    pubkeyRequest(c.me.accountId, profile, cfg.proxy_hash),
+    fetch,
+    "keylease-cli",
   );
   const lock = leaseLock(id, cfg.proxy_hash);
   const args = storeSecretsArgs(cfg.proxy_hash, profile, seal(pubkey, Buffer.from(secrets)), lock);

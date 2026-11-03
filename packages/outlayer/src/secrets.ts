@@ -16,22 +16,34 @@ export function secretsJson(apiKey: string): string {
   return JSON.stringify({ [PROXY_KEY_ENV]: apiKey });
 }
 
-/** Body of `POST <api>/secrets/pubkey` for a row under accessor `WasmHash[proxyHash]`. */
-export function pubkeyRequest(owner: string, profile: string, proxyHash: string, secrets: string) {
+/**
+ * Body of `POST <api>/secrets/pubkey` for a row under accessor `WasmHash[proxyHash]`. The keystore reads
+ * only the names in `secrets_json` (it refuses reserved and `PROTECTED_` names; `keystore-worker/src/api.rs`
+ * `pubkey_handler`), and the public key depends only on accessor, owner and profile. So the request carries
+ * the env names with empty values: the API key itself never travels unencrypted (T8).
+ */
+export function pubkeyRequest(owner: string, profile: string, proxyHash: string, names = [PROXY_KEY_ENV]) {
   wasmHash(proxyHash);
-  return { accessor: { type: "WasmHash", hash: proxyHash }, owner, profile, secrets_json: secrets };
+  const secrets_json = JSON.stringify(Object.fromEntries(names.map((n) => [n, ""])));
+  return { accessor: { type: "WasmHash", hash: proxyHash }, owner, profile, secrets_json };
 }
 
-/** Ask the keystore for the public key to encrypt this row to. */
+/**
+ * Ask the keystore for the public key to encrypt this row to. `userAgent`: OutLayer's own scripts note the
+ * CDN in front of the API wants one from non-browser clients; browsers send their own, so the web app
+ * passes none (a custom header would also widen the CORS preflight).
+ */
 export async function fetchKeystorePubkey(
   api: string,
   body: ReturnType<typeof pubkeyRequest>,
   fetcher: Fetcher = fetch,
+  userAgent?: string,
 ): Promise<string> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (userAgent !== undefined) headers["user-agent"] = userAgent;
   const res = await (fetcher as unknown as typeof fetch)(`${api}/secrets/pubkey`, {
     method: "POST",
-    // OutLayer's own scripts note a User-Agent is required by the CDN in front of the API.
-    headers: { "content-type": "application/json", "user-agent": "keylease-cli" },
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok)

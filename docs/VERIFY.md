@@ -57,64 +57,57 @@ export NEAR_ACCOUNT_ID=<you>.testnet
 read -rs NEAR_PRIVATE_KEY && export NEAR_PRIVATE_KEY     # ed25519:…, not echoed
 ```
 
-**2. Demo API and proxy file.** One small server serves both: the mock API (key required) and, with
-`WASM_DIR`, the proxy wasm at `/wasm/keylease-proxy.wasm` (public, as OutLayer fetches it without logging in).
-A Cloudflare quick tunnel gives it a public https name.
-
-> **Host requirement.** `cloudflared` reaches Cloudflare's edge on port **7844** (QUIC over UDP, or `--protocol
-http2` over TCP); it cannot run through an HTTPS-only proxy. A machine whose egress is HTTPS/443 through a
-> proxy cannot host the tunnel (seen 3 Nov: `failed to dial to edge with quic: timeout`, then `TLS handshake
-with edge error: EOF`; ssh-based tunnels fail there too). Check first:
-> `cloudflared tunnel --url http://localhost:8787` must print a `trycloudflare.com` URL within ~10 s.
-> If it cannot, use **2b** below; the other steps run unchanged on this machine.
+**2. Proxy wasm on a GitHub release** (default). OutLayer's worker fetches the proxy by URL without logging
+in, so the file goes on a release of the public repo `metafrogmeme-droid/keylease-wasm`, tagged
+`wasm-<keylease commit>`. The release URL redirects once to GitHub's file host, within the worker's limit
+of 3 redirects. Run from the commit you built in step 0:
 
 ```sh
-read -rs MOCK_API_KEY && export MOCK_API_KEY
-MOCK_API_KEY=$MOCK_API_KEY WASM_DIR=target/proxy PORT=8787 node mock-api/src/serve.ts &
-cloudflared tunnel --url http://localhost:8787        # prints https://<name>.trycloudflare.com
-curl -s -H "authorization: Bearer $MOCK_API_KEY" https://<name>.trycloudflare.com/v1/models
-curl -s https://<name>.trycloudflare.com/wasm/keylease-proxy.wasm | sha256sum   # = build-proxy.sh sha256
+TAG=wasm-$(git rev-parse --short HEAD)
+gh release create "$TAG" target/proxy/keylease-proxy.wasm --repo metafrogmeme-droid/keylease-wasm \
+  --title "$TAG" --notes "keylease-proxy.wasm from keylease $(git rev-parse HEAD), sha256 $(sha256sum target/proxy/keylease-proxy.wasm | cut -d' ' -f1)"
+PROXY_URL=https://github.com/metafrogmeme-droid/keylease-wasm/releases/download/$TAG/keylease-proxy.wasm
+curl -sL "$PROXY_URL" | sha256sum                   # = step 0 sha256
 ```
 
-In the steps below, `<mock host>` is `<name>.trycloudflare.com`; while FastFS is down, deploy with
-`--proxy-url https://<name>.trycloudflare.com/wasm/keylease-proxy.wasm`.
+A release is only needed when the proxy's sha256 changes; an older release with the same sha256 serves the
+same bytes (3 Nov run: `wasm-0e45d5b`, sha256 `95385bd1…4cd970`). FastFS (`kl deploy` without `--proxy-url`)
+and the `WASM_DIR` route of `serve.ts` remain as other hosts.
 
-Expect `{"object":"list","data":[{"id":"keylease-mock-1",…}]}`.
-
-**2b. Tunnel on a second machine** (for example the owner's laptop) when this one cannot open port 7844. The
-laptop runs only the server and the tunnel; everything else stays here. Both machines hold the same
-`MOCK_API_KEY` in env, typed on each, never copied through chat or git.
+**2b. Demo API on the owner's laptop.** The mock API must be reachable by OutLayer's workers. A Cloudflare
+quick tunnel gives it a public https name, but `cloudflared` reaches Cloudflare's edge on port **7844**
+(QUIC over UDP, or `--protocol http2` over TCP) and cannot run through an HTTPS-only proxy. The operator box
+has HTTPS-only egress (3 Nov: `failed to dial to edge with quic: timeout`, then `TLS handshake with edge
+error: EOF`), so the tunnel runs on the owner's laptop. Both machines hold the same `MOCK_API_KEY` in env,
+typed on each, never copied through chat or git.
 
 ```sh
-# on the laptop, same commit: build the proxy (reproducible) or copy target/proxy/keylease-proxy.wasm over
-scripts/build-proxy.sh                                   # sha256 must equal step 0 on this machine
+# on the laptop (same commit)
 read -rs MOCK_API_KEY && export MOCK_API_KEY
-MOCK_API_KEY=$MOCK_API_KEY WASM_DIR=target/proxy PORT=8787 node mock-api/src/serve.ts &
-cloudflared tunnel --url http://localhost:8787         # prints https://<name>.trycloudflare.com
+MOCK_API_KEY=$MOCK_API_KEY PORT=8787 node mock-api/src/serve.ts &
+cloudflared tunnel --url http://localhost:8787         # prints https://<name>.trycloudflare.com within ~10 s
 
-# back on this machine (outbound HTTPS only is enough): the same two checks as step 2
+# on the operator box (outbound HTTPS is enough)
 curl -s -H "authorization: Bearer $MOCK_API_KEY" https://<name>.trycloudflare.com/v1/models
-curl -s https://<name>.trycloudflare.com/wasm/keylease-proxy.wasm | sha256sum   # = step 0 sha256
 ```
 
-The laptop must stay awake with the tunnel up until step 10. A quick tunnel's name changes on every
-restart; if it does, run `kl set-proxy` with the new URL and seal the key again (step 4) with the new
-`--base-url`. A host that needs only outbound HTTPS from this machine is proposed in docs/PROPOSALS.md
-(P-004).
+Expect `{"object":"list","data":[{"id":"keylease-mock-1",…}]}`. In the steps below, `<mock host>` is
+`<name>.trycloudflare.com`. The laptop stays awake with the tunnel up until step 10. A quick tunnel's name
+changes on every restart; if it does, seal the key again (step 4) with the new `--base-url` (the proxy URL
+is on GitHub and does not change).
 
-**3. Deploy** contract `keylease.<you>.testnet` and the proxy. FastFS by default; if FastFS is down, host
-`target/proxy/keylease-proxy.wasm` on a public https URL and add `--proxy-url https://<host>/keylease-proxy.wasm`
-(the CLI checks it the way OutLayer's worker fetches it, sha256 included, before anything goes on chain).
+**3. Deploy** contract `keylease.<you>.testnet` and the proxy URL from step 2 (the CLI checks the URL the
+way OutLayer's worker fetches it, sha256 included, before anything goes on chain).
 
 ```sh
-kl deploy
+kl deploy --proxy-url "$PROXY_URL"
 ```
 
 ```text
 contract   keylease.<you>.testnet
 code       sha256 <contract sha256, as build-contracts.sh printed>
 proxy      sha256 <proxy sha256, as build-proxy.sh printed>
-proxy url  <FastFS or your URL>
+proxy url  https://github.com/metafrogmeme-droid/keylease-wasm/releases/download/wasm-<commit>/keylease-proxy.wasm
 admin      <you>.testnet
 tx         https://testnet.nearblocks.io/txns/<hash>
 ```
@@ -122,7 +115,8 @@ tx         https://testnet.nearblocks.io/txns/<hash>
 Running it again prints `contract   keylease.<you>.testnet (already deployed)` and the same proxy lines.
 
 **4. Seal the demo key** (encrypted on this machine to OutLayer's keystore, locked to the contract and the
-proxy build; the key is read from env and never printed)
+proxy build; the key is read from env and never printed, and the request for the keystore's public key
+carries only the env name, `{"KL_API_KEY":""}`, see Q-011)
 
 ```sh
 kl add-key --key-env MOCK_API_KEY --base-url https://<mock host> --provider OpenAiCompatible --label demo
@@ -223,11 +217,11 @@ expires    <ISO time>
 endpoints  /v1/chat/completions /debug/headers
 ```
 
-**If the host's URL changes** (a Cloudflare quick tunnel gets a new `*.trycloudflare.com` name on every
-restart): for the proxy, `kl set-proxy --proxy-url https://<new host>/keylease-proxy.wasm` points the
-contract at the same build (it refuses a different build, and checks the URL first); expect `proxy` and
-`proxy url` lines and a `tx` link. For the demo API, run step 4 again with the new `--base-url` (a new key id)
-and lease from that key; the old key keeps its old URL.
+**If a host's URL changes.** The demo API's quick tunnel gets a new `*.trycloudflare.com` name on every
+restart: run step 4 again with the new `--base-url` (a new key id) and lease from that key; the old key keeps
+its old URL. If the proxy ever moves (a new release with the same sha256, or another host),
+`kl set-proxy --proxy-url <new url>` points the contract at the same build (it refuses a different build and
+checks the URL first); expect `proxy` and `proxy url` lines and a `tx` link.
 
 `kl revoke --everything` is the panic button (every lease of the account in one transaction);
 `kl revoke --key 0` revokes every lease on one key.
