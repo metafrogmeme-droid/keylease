@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { fakeRpc } from "./fake-rpc.ts";
 
 let query = "id=7";
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(query) }));
@@ -12,11 +13,7 @@ afterEach(() => {
 });
 
 function stubLease(value: unknown) {
-  const rpc = { result: { result: [...new TextEncoder().encode(JSON.stringify(value))] } };
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(() => Promise.resolve(new Response(JSON.stringify(rpc)))),
-  );
+  vi.stubGlobal("fetch", fakeRpc({ get_lease: () => value, list_receipts: () => [] }).fetcher);
 }
 
 const LEASE = {

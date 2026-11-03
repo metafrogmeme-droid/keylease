@@ -276,6 +276,14 @@ demo`, Seal and add key, confirm two transactions. Expect the field empty at onc
 6. From a shell with the grantee's key in your keychain, the copied near CLI command makes one leased call
    (same as `kl call`, step 7).
 
+7. Your leases: the new lease shows `Lease <n> → <grantee>`, `active`, `0 used, 10 left · expires in 1 h`.
+   After a call (step 6), the row adds `last call … /chat/completions ✓ HTTP 200`, and the lease page lists it
+   under Calls with its input sha256 (no body, no key).
+8. Revoke on that row, confirm one transaction: `✓ Revoked. The next call is refused with lease_revoked.` and
+   the row says `revoked`. Running the near CLI command again fails with
+   `lease_revoked: The key owner revoked this lease; ask them for a new one.` "Revoke all for this key"
+   on the key row does the same for every lease on that key.
+
 ## Hosted on Vercel (D3, E-017)
 
 Vercel Hobby, from this repo. Patrick logs in and deploys; nothing here holds a Vercel token.
