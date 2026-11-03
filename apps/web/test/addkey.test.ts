@@ -55,7 +55,7 @@ describe("Add key in the browser (T8)", () => {
     });
 
     for (const r of net.sent) expect(r.body).not.toContain(KEY);
-    const pubkeyReq = net.sent.find((r) => r.url === "https://testnet-api.outlayer.ai/secrets/pubkey");
+    const pubkeyReq = net.sent.find((r) => r.url === "/api/secrets/pubkey");
     expect(JSON.parse(pubkeyReq?.body ?? "{}")).toMatchObject({
       owner: "alice.testnet",
       profile: "kl-0a0b0c0d0e0f",

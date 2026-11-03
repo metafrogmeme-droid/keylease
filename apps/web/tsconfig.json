@@ -8,6 +8,6 @@
     "types": ["node"],
     "plugins": [{ "name": "next" }]
   },
-  "include": ["app", "components", "lib", "scripts", "test", "e2e", "*.ts"],
+  "include": ["app", "components", "functions", "lib", "scripts", "test", "e2e", "*.ts"],
   "exclude": ["node_modules", ".next", "out"]
 }

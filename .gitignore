@@ -31,3 +31,4 @@ apps/web/out/
 apps/web/.next/
 apps/web/test-results/
 apps/web/playwright-report/
+apps/web/.vercel/

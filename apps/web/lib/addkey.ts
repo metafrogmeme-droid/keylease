@@ -31,7 +31,7 @@ export function formProblem(f: KeyForm, apiKey: string): string | null {
   return baseUrlProblem(f.baseUrl) ?? labelProblem(f.label);
 }
 
-/** Thrown when OutLayer's keystore cannot be reached from this page (CORS or network, Q-011). */
+/** Thrown when the keystore relay cannot be reached from this page (network, or the page is not served with it). */
 export class KeystoreUnreachable extends Error {}
 
 export interface Deps {
@@ -65,7 +65,7 @@ export async function keyTransactions(
   let pubkey: string;
   try {
     pubkey = await fetchKeystorePubkey(
-      cfg.outlayerApi,
+      cfg.pubkeyRelay,
       pubkeyRequest(owner, profile, contract.proxy_hash),
       fetcher,
     );

@@ -2,7 +2,7 @@
  * Which wallets the app offers and which hosts they talk to. Pure: no wallet code is imported here, so
  * the build's CSP step and the tests can use it.
  */
-import { DEFAULT_OUTLAYER_API, DEFAULT_RPC, type WebConfig } from "./config.ts";
+import { DEFAULT_RPC, type WebConfig } from "./config.ts";
 
 export type WalletId =
   "my-near-wallet" | "meteor-wallet" | "hot-wallet" | "intear-wallet" | "wallet-connect" | "ethereum-wallets";
@@ -63,8 +63,7 @@ export interface Sources {
 export function sources(cfg: Pick<WebConfig, "reownProjectId">): Sources {
   const connect = [
     "'self'",
-    DEFAULT_RPC,
-    DEFAULT_OUTLAYER_API,
+    DEFAULT_RPC, // OutLayer's keystore goes through the same-origin relay ('self'), E-017
     NEAR_TESTNET_EVM_RPC, // MetaMask on chain 398
     "https://h4n.app", // HOT bridge
     "https://logout-bridge-service.intear.tech",

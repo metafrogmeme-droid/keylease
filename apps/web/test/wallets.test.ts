@@ -40,7 +40,6 @@ describe("CSP sources (T8)", () => {
     expect(s.connect).toEqual([
       "'self'",
       "https://rpc.testnet.near.org",
-      "https://testnet-api.outlayer.ai",
       "https://eth-rpc.testnet.near.org",
       "https://h4n.app",
       "https://logout-bridge-service.intear.tech",
