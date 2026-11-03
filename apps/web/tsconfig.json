@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "plugins": [{ "name": "next" }]
+  },
+  "include": ["app", "components", "lib", "scripts", "test", "e2e", "*.ts"],
+  "exclude": ["node_modules", ".next", "out"]
+}
