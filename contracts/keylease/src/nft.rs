@@ -139,7 +139,8 @@ impl KeyLease {
         self.flush_all();
     }
 
-    fn revoked(&self, l: &Lease) -> bool {
+    /// Revoked one by one, by `revoke_all` on its key, or by the owner's panic button.
+    pub(crate) fn revoked(&self, l: &Lease) -> bool {
         let key_live = self
             .keys
             .get(&l.key_id)

@@ -10,6 +10,7 @@ mod check;
 mod events;
 mod nft;
 mod run;
+mod sub;
 mod views;
 
 use keylease_rules as validate;
@@ -20,6 +21,8 @@ mod tests;
 mod tests_nft;
 #[cfg(test)]
 mod tests_run;
+#[cfg(test)]
+mod tests_sub;
 
 pub use check::check;
 pub use keylease_reasons::Refusal;
@@ -100,13 +103,21 @@ pub struct Lease {
     pub owner_epoch: u32,
     /// The holder may transfer the lease as a Key Pass (NEP-171); set by the owner at creation.
     pub transferable: bool,
+    /// The lease this one was handed on from (`create_sub_lease`); None for a lease from the key owner.
+    pub parent: Option<u64>,
+    /// 0 for a key owner's lease, parent's depth + 1 for a sub-lease (at most `MAX_DEPTH`).
+    pub depth: u8,
+    /// Who created it: the key owner, or the holder of the parent lease. May revoke it.
+    pub issuer: AccountId,
+    /// Sub-leases handed on from this lease (at most `MAX_CHILDREN`).
+    pub children: Vec<u64>,
     /// Block time of creation, ns.
     pub created_at: u64,
 }
 
 #[derive(BorshStorageKey)]
 #[near]
-enum StorageKey {
+pub(crate) enum StorageKey {
     Keys,
     Leases,
     OwnerEpochs,
@@ -265,6 +276,10 @@ impl KeyLease {
             key_epoch,
             owner_epoch,
             transferable: transferable.unwrap_or(false),
+            parent: None,
+            depth: 0,
+            issuer: owner.clone(),
+            children: Vec::new(),
             created_at: env::block_timestamp(),
         };
         events::lease_created(id, &lease);
@@ -280,14 +295,18 @@ impl KeyLease {
         U64(id)
     }
 
-    /// Revoke one lease. Key owner only; the next call is refused.
+    /// Revoke one lease, and with it every sub-lease below it (they are refused `parent_revoked` from
+    /// this call on). The key owner may revoke any lease; the issuer of a sub-lease may revoke it.
     pub fn revoke(&mut self, lease_id: U64) {
         let caller = env::predecessor_account_id();
         let lease = self
             .leases
             .get_mut(&lease_id.0)
             .unwrap_or_else(|| refuse(Refusal::LeaseNotFound));
-        require!(lease.owner == caller, "only the key owner can revoke this lease");
+        require!(
+            lease.owner == caller || lease.issuer == caller,
+            "only the key owner or the issuer can revoke this lease"
+        );
         lease.revoked = true;
         events::lease_revoked(lease_id.0, &caller);
     }
@@ -310,7 +329,7 @@ impl KeyLease {
 }
 
 impl KeyLease {
-    fn owner_epoch(&self, owner: &AccountId) -> u32 {
+    pub(crate) fn owner_epoch(&self, owner: &AccountId) -> u32 {
         self.owner_epochs.get(owner).copied().unwrap_or(0)
     }
 
@@ -332,10 +351,23 @@ impl KeyLease {
         let lease = self.leases.get(&lease_id);
         let key = lease.and_then(|l| self.keys.get(&l.key_id));
         let owner_epoch = lease.map_or(0, |l| self.owner_epoch(&l.owner));
-        check(lease, key, owner_epoch, caller, endpoint, env::block_timestamp())
+        check(lease, key, owner_epoch, caller, endpoint, env::block_timestamp())?;
+        // Every lease above a sub-lease must still allow it (at most MAX_DEPTH steps).
+        let mut up = lease.and_then(|l| l.parent);
+        while let Some(id) = up {
+            let p = self.leases.get(&id).ok_or(Refusal::ParentRevoked)?;
+            if self.revoked(p) {
+                return Err(Refusal::ParentRevoked);
+            }
+            if p.calls_used >= p.calls_total {
+                return Err(Refusal::ParentQuotaUsed);
+            }
+            up = p.parent;
+        }
+        Ok(())
     }
 
-    fn index(
+    pub(crate) fn index(
         map: &mut LookupMap<AccountId, IterableSet<u64>>,
         account: &AccountId,
         id: u64,
@@ -373,7 +405,7 @@ impl KeyLease {
 
     /// Write state, then charge the storage it grew by to `payer` (refunding the rest of the deposit),
     /// or refund what it shrank by.
-    fn flush_and_settle(&mut self, before: u64, payer: &AccountId) {
+    pub(crate) fn flush_and_settle(&mut self, before: u64, payer: &AccountId) {
         self.flush_all();
         let after = env::storage_usage();
         let attached = env::attached_deposit().as_yoctonear();

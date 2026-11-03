@@ -310,3 +310,61 @@ async fn key_pass_transfer_moves_the_lease() -> anyhow::Result<()> {
     assert_eq!(r2["caller"], json!(w.mallory.id()));
     Ok(())
 }
+
+#[tokio::test]
+async fn revoking_a_parent_refuses_its_sub_lease_in_the_same_call() -> anyhow::Result<()> {
+    let w = world().await?;
+    let root = lease(&w, &["/v1/chat/completions"], 4).await?;
+    let now_ns = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos(),
+    )?;
+    // bob (the holder) hands 2 of his 4 calls on to mallory, for 30 minutes
+    let child: String = w
+        .bob
+        .call(w.kl.id(), "create_sub_lease")
+        .args_json(json!({ "parent": root, "grantee": w.mallory.id(), "calls": 2,
+                           "expires_at": (now_ns + 1_800_000_000_000).to_string(),
+                           "endpoints": ["/v1/chat/completions"] }))
+        .deposit(NearToken::from_millinear(100))
+        .transact()
+        .await?
+        .into_result()?
+        .json()?;
+    assert!(use_lease(&w, &w.mallory, &child, "/v1/chat/completions")
+        .await?
+        .is_ok());
+    let parent: Value =
+        w.kl.view("get_lease")
+            .args_json(json!({ "lease_id": root }))
+            .await?
+            .json()?;
+    assert_eq!(parent["calls_used"], json!(1)); // the child's call counted on the parent
+
+    // more than the parent has left is refused at creation
+    let too_many = w
+        .bob
+        .call(w.kl.id(), "create_sub_lease")
+        .args_json(json!({ "parent": root, "grantee": w.mallory.id(), "calls": 4,
+                           "expires_at": (now_ns + 1_800_000_000_000).to_string(),
+                           "endpoints": ["/v1/chat/completions"] }))
+        .deposit(NearToken::from_millinear(100))
+        .transact()
+        .await?;
+    assert!(too_many.into_result().is_err());
+
+    // one revoke by the key owner; the sub-lease is refused right after, with no other transaction
+    w.alice
+        .call(w.kl.id(), "revoke")
+        .args_json(json!({ "lease_id": root }))
+        .transact()
+        .await?
+        .into_result()?;
+    let refused = use_lease(&w, &w.mallory, &child, "/v1/chat/completions").await?;
+    assert!(
+        matches!(&refused, Err(e) if e.contains("parent_revoked")),
+        "{refused:?}"
+    );
+    Ok(())
+}

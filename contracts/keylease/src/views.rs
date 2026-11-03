@@ -1,8 +1,8 @@
 //! Read-only views: plain status for the web app, SDK and agents.
-use crate::{check, KeyLease, KeyLeaseExt, KeyRecord, Lease, Provider};
+use crate::{KeyLease, KeyLeaseExt, KeyRecord, Lease, Provider};
 use near_sdk::json_types::U64;
 use near_sdk::store::{IterableSet, LookupMap};
-use near_sdk::{env, near, AccountId};
+use near_sdk::{near, AccountId};
 
 /// Most items one list call returns.
 pub const MAX_PAGE: u32 = 100;
@@ -47,6 +47,10 @@ pub struct LeaseView {
     pub endpoints: Vec<String>,
     pub status: LeaseStatus,
     pub created_at: U64,
+    /// The lease this one was handed on from; None for a key owner's lease.
+    pub parent: Option<U64>,
+    pub depth: u8,
+    pub issuer: AccountId,
 }
 
 /// Answer of `check_call`: would this call pass right now, and if not, why and what to do.
@@ -140,26 +144,21 @@ impl KeyLease {
             calls_left: l.calls_total.saturating_sub(l.calls_used),
             expires_at: U64(l.expires_at),
             endpoints: l.endpoints.clone(),
-            status: self.status(l),
+            status: self.status(id, l),
             created_at: U64(l.created_at),
+            parent: l.parent.map(U64),
+            depth: l.depth,
+            issuer: l.issuer.clone(),
         }
     }
 
-    /// Status as the gate would see it for the grantee (endpoint aside).
-    fn status(&self, l: &Lease) -> LeaseStatus {
-        let key = self.keys.get(&l.key_id);
+    /// Status as the gate would see it for the grantee (endpoint aside), leases above it included.
+    fn status(&self, id: u64, l: &Lease) -> LeaseStatus {
         let probe = l.endpoints.first().map_or("", String::as_str);
-        match check(
-            Some(l),
-            key,
-            self.owner_epoch(&l.owner),
-            &l.grantee,
-            probe,
-            env::block_timestamp(),
-        ) {
+        match self.check_internal(id, &l.grantee, probe) {
             Ok(()) => LeaseStatus::Active,
             Err(crate::Refusal::LeaseExpired) => LeaseStatus::Expired,
-            Err(crate::Refusal::QuotaUsed) => LeaseStatus::UsedUp,
+            Err(crate::Refusal::QuotaUsed | crate::Refusal::ParentQuotaUsed) => LeaseStatus::UsedUp,
             Err(_) => LeaseStatus::Revoked,
         }
     }
