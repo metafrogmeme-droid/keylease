@@ -102,8 +102,8 @@ with an `x-keylease-demo` header, and the relay's limits (2 KB bodies, 20 reques
 browsers from other sites refused). The low-value demo key goes into Vercel's env, typed at the prompt:
 
 ```sh
-npx vercel@latest env add MOCK_API_KEY production --cwd apps/web    # paste the demo key at the prompt
-npx vercel@latest deploy --prod --cwd apps/web
+npx vercel@latest env add MOCK_API_KEY production    # from the repo root; paste the demo key at the prompt
+npx vercel@latest deploy --prod                      # see "Hosted on Vercel" for the prebuilt path
 curl -s -H "authorization: Bearer $MOCK_API_KEY" https://<app>/mock/v1/models
 curl -sI https://<app>/mock/v1/models | grep -i x-keylease-demo
 ```
@@ -337,10 +337,10 @@ both the measured run and a human estimate (4 s per click or field) stay under 6
 
 Vercel Hobby, from this repo. Patrick logs in and deploys; nothing here holds a Vercel token.
 
-**Live:** `https://keylease.vercel.app` (project `rune-claw/keylease`, Root Directory `apps/web`, deployed
-prebuilt on 2026-11-03). Checked on it so far: the demo API at `/mock` (step 2c), the demo key sealed
-against it (step 4) and the attack run. Still open: the header and relay checks below, and the real-wallet
-run ("Web app, by hand" steps 1-9 on this URL).
+**Live:** `https://keylease.vercel.app` (project `rune-claw/keylease`, Root Directory `apps/web`, prebuilt
+deploys). Checked on it: the demo API at `/mock` (step 2c), the demo key sealed against it (step 4), the
+attack run, and the header, relay and leased-call checks below (_Run 2026-11-03_). Still open: the
+real-wallet run ("Web app, by hand" steps 1-9 on this URL).
 
 Project settings (once): **Root Directory** `apps/web`, **Framework Preset** Other, **Node.js** 22.x.
 `apps/web/vercel.json` sets the install and build commands; the build writes `.vercel/output` (Build
@@ -353,12 +353,16 @@ variables (Production and Preview):
 | `NEXT_PUBLIC_KEYLEASE_CONTRACT_ID` | `keylease.<you>.testnet`                  |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID`     | empty (WalletConnect off, E-016)          |
 
+Run the CLI from the **repo root**, without `--cwd apps/web`: the project's Root Directory is already
+`apps/web`, so `--cwd apps/web` makes the CLI look for `apps/web/apps/web` and stop with "does not exist".
+`.vercel/` (the link and the build output) is git-ignored.
+
 ```sh
 npx vercel@latest login          # or connect the GitHub repo in the Vercel dashboard
-npx vercel@latest link --cwd apps/web
-npx vercel@latest deploy --cwd apps/web            # preview; add --prod for production
-# or build here and upload the output (how the live deploy was made):
-npx vercel@latest build --prod --cwd apps/web && npx vercel@latest deploy --prebuilt --prod --cwd apps/web
+npx vercel@latest link           # once, at the repo root: pick rune-claw/keylease
+npx vercel@latest deploy         # preview; add --prod for production
+# or build here and upload the output (how the live deploys are made):
+npx vercel@latest build --prod && npx vercel@latest deploy --prebuilt --prod
 ```
 
 Checks against the deployed URL `<app>`:
@@ -377,6 +381,26 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<app>/api/secrets/pubke
   -H 'content-type: application/json' -H 'origin: https://example.org' -d "$B"
 # 403
 ```
+
+_Run 2026-11-03_ (Patrick) on `https://keylease.vercel.app`, deploy `dpl_4DAL4AagpMKf3dn5cgzz8vvotFi9` of
+`main` at `e664be0` (after PR 10c), 20:48 CET:
+
+| Check                                                       | Result                                                                                                                                                                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /` headers                                             | `content-security-policy: frame-ancestors 'none'`, `x-frame-options: DENY`, `nosniff`, HSTS with preload, `no-referrer`, `permissions-policy`                                                     |
+| `/mock/v1/models` without the key, `HEAD` / `GET`           | 401 / 401 (`HEAD` was 404 before PR 10c)                                                                                                                                                          |
+| `/mock/v1/models` with a wrong key, `HEAD` / `GET`          | 401 / 401                                                                                                                                                                                         |
+| `x-keylease-demo` header on `/mock`                         | present                                                                                                                                                                                           |
+| `/mock` from a foreign origin                               | 403                                                                                                                                                                                               |
+| relay `POST /api/secrets/pubkey`, empty secret value        | 200, a 64-hex pubkey                                                                                                                                                                              |
+| relay, non-empty secret value                               | 400                                                                                                                                                                                               |
+| relay, foreign origin                                       | 403                                                                                                                                                                                               |
+| lease 1 on key 0, then a leased `POST /v1/chat/completions` | [lease tx](https://testnet.nearblocks.io/txns/BzKeENDTdX1tgdVMZRJSRxaBDvrz4SSgVe1cqHgedfaS), [call tx](https://testnet.nearblocks.io/txns/CuihvYgQZ7kY3o6C5kH6GoKeLtGz5M66ye2b35mgyZg1): HTTP 200 |
+| lease 2 on key 0, then a leased `GET /v1/models`            | [lease tx](https://testnet.nearblocks.io/txns/6QYryo8cvGm9GHqeVSbR9AL66faSmhZLbM1VM1QVr244), [call tx](https://testnet.nearblocks.io/txns/D8udBtXJ5FmoYbgFnMwvJwCTaBigtgavMprPPy2AzbKL): HTTP 200 |
+
+`/mock` with the real demo key, called directly, was not run: `MOCK_API_KEY` is a sensitive variable in
+Vercel and is not read back. The two leased calls above reached `/mock` with that key from inside the
+proxy and got 200.
 
 Then run "Web app, by hand" steps 1-9 on `https://<app>` instead of the local server.
 

@@ -25,7 +25,16 @@ const say = (label: string, value: string): void => {
 const sha256 = (b: Uint8Array): string => createHash("sha256").update(b).digest("hex");
 
 function str(o: Opts, name: string, fallback?: string): string {
-  const v = o[name] ?? fallback;
+  return one(o, name, fallback);
+}
+
+/** One value of a flag. A repeatable flag (`--endpoint`) arrives as a list; here it must be given once. */
+export function one(o: Opts, name: string, fallback?: string): string {
+  let v = o[name] ?? fallback;
+  if (Array.isArray(v)) {
+    if (v.length > 1) throw new Error(`give --${name} once`);
+    v = v[0] ?? fallback;
+  }
   if (typeof v !== "string" || v === "") throw new Error(`--${name} is required`);
   return v;
 }
