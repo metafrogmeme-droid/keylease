@@ -1,0 +1,12 @@
+{
+  "name": "@keylease/repo-lint",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Repository rules: copy-lint (wording), .env.example names-only, commit author and message checks.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

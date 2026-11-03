@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pre-commit: secrets scan of staged changes + copy-lint of staged files.
+# Enabled by `pnpm install` (sets core.hooksPath=.githooks). Fails closed if gitleaks is missing.
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+gitleaks_bin="$(command -v gitleaks || true)"
+[ -z "$gitleaks_bin" ] && [ -x .tools/bin/gitleaks ] && gitleaks_bin=.tools/bin/gitleaks
+if [ -z "$gitleaks_bin" ]; then
+  echo "pre-commit: gitleaks not found. Run scripts/install-gitleaks.sh (or install gitleaks) and retry." >&2
+  exit 1
+fi
+"$gitleaks_bin" git --pre-commit --staged --redact --config .gitleaks.toml --no-banner -v
+
+mapfile -d '' staged < <(git diff --cached --name-only --diff-filter=ACMR -z)
+if [ "${#staged[@]}" -gt 0 ]; then
+  node tools/repo-lint/src/cli.ts copy "${staged[@]}"
+fi
+if printf '%s\n' "${staged[@]}" | grep -qx '.env.example'; then
+  node tools/repo-lint/src/cli.ts env
+fi
