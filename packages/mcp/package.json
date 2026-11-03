@@ -1,0 +1,28 @@
+{
+  "name": "@keylease/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "KeyLease MCP server: lets an agent make leased API calls by lease id; the key never reaches the agent.",
+  "bin": {
+    "keylease-mcp": "./dist/keylease-mcp.mjs"
+  },
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "start": "node src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@keylease/sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
