@@ -30,27 +30,28 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings
 scripts/build-contracts.sh && cargo test # sandbox tests need cargo-near and `ulimit -n 65535`
 pnpm --filter @keylease/web dev          # web app on localhost:3000 (testnet only)
 pnpm --filter @keylease/web build && pnpm --filter @keylease/web e2e   # static export + CSP, Playwright smoke
+pnpm --filter @keylease/web build:e2e && pnpm --filter @keylease/web e2e:timing   # time to first lease ≤ 60 s
 ```
 
 Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never commit a key.
 
 ## Layout
 
-| Path                      | What                                                                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `contracts/keylease`      | NEAR contract: keys, leases, quotas, expiry, endpoints, revoke                                                                    |
-| `contracts/mock-outlayer` | test double for OutLayer, sandbox tests only                                                                                      |
-| `tests/sandbox`           | end-to-end tests in a local NEAR sandbox                                                                                          |
-| `wasm/keylease-proxy`     | proxy run in the OutLayer TEE: opens the key, calls one endpoint, withholds the key                                               |
-| `apps/web`                | web app (Next.js static export): TESTNET banner, onboarding, wallets, Add key, Test key, presets, Share, leases, revoke, receipts |
-| `cli`                     | `kl`: owner-run testnet CLI (deploy, add key, lease, call, receipts, revoke); see docs/VERIFY.md                                  |
-| `packages/outlayer`       | OutLayer helpers: keystore envelope, secret lock, wasm publishing, run outcomes                                                   |
-| `mock-api`                | low-value demo API (OpenAI-shaped chat, echo, a header mirror that trips the tripwire)                                            |
-| `crates/keylease-reasons` | refusal codes and hints shared by contract, proxy and clients                                                                     |
-| `crates/keylease-rules`   | input rules shared by contract and proxy                                                                                          |
-| `tools/repo-lint`         | copy-lint, env-lint, commit-lint (run in CI and the git hooks)                                                                    |
-| `scripts/`                | gitleaks install and self-test, reproducible proxy build                                                                          |
-| `docs/`                   | threat model, decisions, open questions, proposals, wording, verify                                                               |
+| Path                      | What                                                                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts/keylease`      | NEAR contract: keys, leases, quotas, expiry, endpoints, revoke                                                                                  |
+| `contracts/mock-outlayer` | test double for OutLayer, sandbox tests only                                                                                                    |
+| `tests/sandbox`           | end-to-end tests in a local NEAR sandbox                                                                                                        |
+| `wasm/keylease-proxy`     | proxy run in the OutLayer TEE: opens the key, calls one endpoint, withholds the key                                                             |
+| `apps/web`                | web app (Next.js static export): TESTNET banner, onboarding, wallets, Add key, Test key, presets, Share, leases, revoke, receipts, panic button |
+| `cli`                     | `kl`: owner-run testnet CLI (deploy, add key, lease, call, receipts, revoke); see docs/VERIFY.md                                                |
+| `packages/outlayer`       | OutLayer helpers: keystore envelope, secret lock, wasm publishing, run outcomes                                                                 |
+| `mock-api`                | low-value demo API (OpenAI-shaped chat, echo, a header mirror that trips the tripwire)                                                          |
+| `crates/keylease-reasons` | refusal codes and hints shared by contract, proxy and clients                                                                                   |
+| `crates/keylease-rules`   | input rules shared by contract and proxy                                                                                                        |
+| `tools/repo-lint`         | copy-lint, env-lint, commit-lint (run in CI and the git hooks)                                                                                  |
+| `scripts/`                | gitleaks install and self-test, reproducible proxy build                                                                                        |
+| `docs/`                   | threat model, decisions, open questions, proposals, wording, verify                                                                             |
 
 ## Docs
 

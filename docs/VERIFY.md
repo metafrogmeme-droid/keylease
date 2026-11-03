@@ -284,6 +284,16 @@ demo`, Seal and add key, confirm two transactions. Expect the field empty at onc
    `lease_revoked: The key owner revoked this lease; ask them for a new one.` "Revoke all for this key"
    on the key row does the same for every lease on that key.
 
+9. Panic button → Revoke everything → Yes, revoke everything, confirm one transaction: `✓ Every lease of
+this account is revoked…`; every lease row says `revoked`, and any copied near CLI call fails with
+   `lease_revoked`.
+
+Time to first lease (brief §4) is measured in CI by `apps/web/e2e/timing.spec.ts`. It drives connect →
+paste key → preset → share against a build with a test-only wallet (`pnpm build:e2e`, never deployed:
+`pnpm check:release` fails any build that contains it, and the Vercel build runs that check). It asserts
+both the measured run and a human estimate (4 s per click or field) stay under 60 s; today 8 actions,
+32 s estimated.
+
 ## Hosted on Vercel (D3, E-017)
 
 Vercel Hobby, from this repo. Patrick logs in and deploys; nothing here holds a Vercel token.

@@ -104,19 +104,20 @@ jobs:
       - name: test
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
         run: pnpm test
-      # --- Web: static export with the CSP pass, then the Playwright smoke (headless shell only) ---
-      - name: web build (static export + CSP)
-        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.web == 'true'
-        run: pnpm --filter @keylease/web build
+      # --- Web: Playwright on two builds (timing test with the test wallet; release build smoke) ---
       - uses: actions/cache@v5
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.web == 'true'
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/package.json') }}
-      - name: Playwright smoke
+      - name: Playwright (timing test, release check, smoke)
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.web == 'true'
         working-directory: apps/web
-        run: pnpm exec playwright install --only-shell chromium && pnpm e2e
+        # Timing test on the test-wallet build, then the release build: no test wallet, smoke tests.
+        run: |
+          pnpm exec playwright install --only-shell chromium
+          pnpm build:e2e && pnpm e2e:timing
+          pnpm build && pnpm check:release && pnpm e2e
 
       # --- Rust ---
       - uses: Swatinem/rust-cache@v2

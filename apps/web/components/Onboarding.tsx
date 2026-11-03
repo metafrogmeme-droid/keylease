@@ -6,6 +6,7 @@ import { AddKey } from "./AddKey.tsx";
 import { ConnectWallet } from "./ConnectWallet.tsx";
 import { KeyList } from "./KeyList.tsx";
 import { LeaseList } from "./LeaseList.tsx";
+import { PanicButton } from "./PanicButton.tsx";
 import { OnboardingStrip } from "./OnboardingStrip.tsx";
 import { useWallet } from "./WalletProvider.tsx";
 
@@ -35,6 +36,11 @@ export function Onboarding() {
             }}
           />
           <LeaseList refresh={leased} />
+          <PanicButton
+            onDone={() => {
+              setLeased((n) => n + 1);
+            }}
+          />
         </>
       )}
     </>
