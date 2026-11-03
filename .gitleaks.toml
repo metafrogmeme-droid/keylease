@@ -1,0 +1,38 @@
+# gitleaks config: built-in rules plus KeyLease-specific ones.
+# CI scans the full git history on every PR (see .github/workflows/ci.yml).
+title = "keylease"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "near-ed25519-private-key"
+description = "NEAR ed25519 secret key (ed25519:<base58 64 bytes>)"
+regex = '''ed25519:[1-9A-HJ-NP-Za-km-z]{80,90}'''
+keywords = ["ed25519:"]
+
+[[rules]]
+id = "near-secp256k1-private-key"
+description = "NEAR secp256k1 secret key"
+regex = '''secp256k1:[1-9A-HJ-NP-Za-km-z]{40,50}\b'''
+keywords = ["secp256k1:"]
+
+[[rules]]
+id = "env-style-secret-assignment"
+description = "Known KeyLease secret env names with a value"
+regex = '''(?i)\b(NEAR_PRIVATE_KEY|DEMO_SPONSOR_PRIVATE_KEY|OUTLAYER_PAYMENT_KEY|NEAR_AI_CLOUD_API_KEY)[ \t]*[=:][ \t]*["']?([^\s"'#]{8,})'''
+secretGroup = 2
+keywords = ["private_key", "payment_key", "api_key"]
+
+[[rules]]
+id = "seed-phrase-assignment"
+description = "Mnemonic seed phrase assigned to a variable"
+regex = '''(?i)\b(seed[_ ]?phrase|mnemonic|recovery[_ ]?phrase)[ \t]*[=:][ \t]*["']?((?:[a-z]{3,8}\s+){11,23}[a-z]{3,8})'''
+secretGroup = 2
+keywords = ["seed", "mnemonic", "recovery"]
+
+[[rules]]
+id = "llm-provider-key"
+description = "OpenAI/Anthropic/OpenAI-compatible style key"
+regex = '''\b(sk-(?:proj-|ant-[a-z0-9]{2,6}-)?[A-Za-z0-9_\-]{32,})'''
+keywords = ["sk-"]

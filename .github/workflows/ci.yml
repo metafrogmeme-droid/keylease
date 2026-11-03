@@ -1,0 +1,122 @@
+name: ci
+
+on:
+  pull_request:
+    # `edited` re-lints the PR title and body only (every other step is skipped).
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event.action == 'edited' && 'text' || 'full' }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # gitleaks_8.30.1_linux_x64.tar.gz; also checked against the release checksums file.
+  GITLEAKS_LINUX_X64_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+jobs:
+  # One job on purpose: private-repo minutes are billed per job, rounded up (docs/DECISIONS.md E-001).
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Changed areas
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+        run: |
+          if [ "$ACTION" = edited ]; then
+            echo "full=false" >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "full=true" >>"$GITHUB_OUTPUT"
+          if [ "$EVENT" != pull_request ]; then
+            echo "node=true" >>"$GITHUB_OUTPUT"; echo "rust=true" >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          files="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$files"
+          all=false; grep -q '^\.github/workflows/' <<<"$files" && all=true
+          rust=$all; grep -qE '\.rs$|(^|/)Cargo\.(toml|lock)$|^rustfmt\.toml$|^rust-toolchain|^docs/WORDING\.md$' <<<"$files" && rust=true
+          node=$all; grep -qvE '\.rs$|(^|/)Cargo\.(toml|lock)$|^rustfmt\.toml$|^rust-toolchain' <<<"$files" && node=true
+          echo "node=$node" >>"$GITHUB_OUTPUT"; echo "rust=$rust" >>"$GITHUB_OUTPUT"
+
+      # --- secrets: every PR, full history, verbose ---
+      - uses: actions/cache@v5
+        if: steps.changes.outputs.full == 'true'
+        with:
+          path: .tools
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-gitleaks.sh') }}
+      - name: Install gitleaks (pinned, checksum-verified)
+        if: steps.changes.outputs.full == 'true'
+        run: scripts/install-gitleaks.sh
+      - name: gitleaks full history
+        if: steps.changes.outputs.full == 'true'
+        run: .tools/bin/gitleaks git --config .gitleaks.toml --ignore-gitleaks-allow --redact -v --no-banner --log-opts=--all .
+      - name: gitleaks self-test (planted fake keys must be caught)
+        if: steps.changes.outputs.full == 'true'
+        run: GITLEAKS=.tools/bin/gitleaks scripts/gitleaks-selftest.sh
+
+      # --- repo rules: every PR (Node only, no install needed) ---
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          # v5 auto-caches from package.json `packageManager`; that fails when pnpm install was skipped.
+          package-manager-cache: false
+          cache: ${{ steps.changes.outputs.node == 'true' && 'pnpm' || '' }}
+      - name: copy-lint
+        if: steps.changes.outputs.full == 'true'
+        run: node tools/repo-lint/src/cli.ts copy
+      - name: env-lint
+        if: steps.changes.outputs.full == 'true'
+        run: node tools/repo-lint/src/cli.ts env
+      - name: commit-lint (author, no tool labels)
+        if: steps.changes.outputs.full == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/repo-lint/src/cli.ts commits "$BASE_SHA..$HEAD_SHA"
+      - name: PR title and body lint
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | node tools/repo-lint/src/cli.ts text
+
+      # --- TypeScript ---
+      - name: pnpm install
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: eslint + prettier
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
+        run: pnpm lint
+      - name: typecheck
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
+        run: pnpm typecheck
+      - name: test
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
+        run: pnpm test
+
+      # --- Rust ---
+      - uses: Swatinem/rust-cache@v2
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
+      - name: rustfmt
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
+        run: cargo fmt --all --check
+      - name: clippy
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: cargo test
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
+        run: cargo test --workspace --locked

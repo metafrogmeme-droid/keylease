@@ -1,0 +1,10 @@
+{
+  "files": [
+    {
+      "path": "docs/BUILD_BRIEF.md",
+      "rules": ["verdict-wording", "promo"],
+      "reason": "Verbatim project brief; it quotes the wording and ticker it forbids so the rules can be stated."
+    }
+  ],
+  "commitAuthors": ["313699818+metafrogmeme-droid@users.noreply.github.com"]
+}

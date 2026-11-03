@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# commit-msg: no tool attribution labels or co-author trailers in commit messages.
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+node "$root/tools/repo-lint/src/cli.ts" text < "$1"
