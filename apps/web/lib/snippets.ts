@@ -14,13 +14,17 @@ export function leaseLink(s: ShareInfo): string {
   return `${s.origin}/lease/?id=${encodeURIComponent(s.leaseId)}`;
 }
 
+/** Runs as written against `@keylease/sdk` (test/snippets-run.test.ts executes it). */
 export function sdkSnippet(s: ShareInfo): string {
   return [
     "npm i @keylease/sdk",
     "",
     'import { lease } from "@keylease/sdk";',
-    `const l = lease({ contract: "${s.contractId}", leaseId: "${s.leaseId}" }); // signs as ${s.grantee}`,
+    "",
+    `// Signs as ${s.grantee}: NEAR_ACCOUNT_ID and NEAR_PRIVATE_KEY come from env, never from code.`,
+    `const l = lease({ contract: "${s.contractId}", leaseId: "${s.leaseId}" });`,
     `const { data, receipt } = await l.call("${s.endpoint}", { /* request body */ });`,
+    "console.log(data, receipt.url);",
   ].join("\n");
 }
 
