@@ -61,3 +61,10 @@ PR 3 with `rust-toolchain.toml`, once the spike confirms the versions.
 Throwaway code for Q-001/Q-002: excluded from the root cargo workspace so product CI stays lean. Its
 TypeScript runner is in the pnpm workspace so its unit tests (envelope, FastFS payload, lock shape) run in
 CI. Nothing in `spike/` is imported by product code; PR 3 starts the real contract.
+
+### E-008 (after PR 2) Answers from Patrick, 3 Nov
+
+- Spike runs on Patrick's operator computer; the build session's network stays closed (Q-007, Q-008).
+- Contract upgradable on testnet until code freeze, then locked; upgrade = new contract id (Q-009, T19).
+- HACKATHON.md re-read 3 Nov 07:25 CET: no rule change, deadline 2026-11-14T23:59Z (Q-004).
+- If spike row S6 fails, receipts keep hashes on chain and the body travels off chain (Q-010).

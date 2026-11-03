@@ -37,18 +37,39 @@ A row counts as **refused** only when OutLayer accepted the request and its `exe
 reports `success: false`; a panic before OutLayer or a missing event is **error**, never a pass. Every
 refusal's `error_message` is recorded for review.
 
-## Run (owner's machine or an allowed session)
+## Run on the operator computer
+
+Testnet only. The key stays in the operator's environment; never paste it into git, chat or a screenshot.
+Needs Node ≥ 22.18, pnpm 10, Rust stable, and network access to `rpc.testnet.near.org`,
+`testnet-api.outlayer.ai` and `test.fastfs.io`.
 
 ```sh
-rustup target add wasm32-wasip2 && cargo install cargo-near --locked   # once
+# 0. once: tools
+rustup target add wasm32-wasip2
+cargo install cargo-near --locked --no-default-features   # --no-default-features skips the USB/Ledger deps
+
+# 1. code
+git clone https://github.com/metafrogmeme-droid/keylease && cd keylease   # or: git pull on main
+pnpm install
+
+# 2. build (fails if the proxy hash differs between two builds)
 spike/build.sh
-node spike/runner/src/run.ts             # dry run: prints the plan, sends nothing
-set -a; . ./.env; set +a                 # NEAR_ACCOUNT_ID, NEAR_PRIVATE_KEY (testnet), optional NEAR_RPC_URL
-node spike/runner/src/run.ts --apply     # about 7.5 NEAR moved to sub-accounts, nearly all returned at cleanup
+
+# 3. account: a fresh .testnet account funded with ~10 NEAR from the faucet, key in env only
+export NEAR_ACCOUNT_ID=<fresh>.testnet
+read -rs NEAR_PRIVATE_KEY && export NEAR_PRIVATE_KEY      # paste ed25519:... ; not echoed, not in history
+
+# 4. dry run: prints accounts, hashes, lock JSON and rows S1-S6; sends nothing
+node spike/runner/src/run.ts
+
+# 5. live run: ~7.2 NEAR moves to 3 sub-accounts and comes back at cleanup (also on failure)
+node spike/runner/src/run.ts --apply
+
+# 6. send back the printed PASS/FAIL lines and the file spike/results/<time>.json
+unset NEAR_PRIVATE_KEY
 ```
 
-Hosts it needs: `rpc.testnet.near.org` (or `NEAR_RPC_URL`), `testnet-api.outlayer.ai`, `test.fastfs.io`.
-
-The canary is random per run, lives only in memory, and is checked never to appear in any output, log or
-result file. Sub-account keys are generated in memory and the accounts are deleted at the end
-(`--keep` skips cleanup).
+The runner refuses a non-`.testnet` account, a non-testnet RPC and leftover sub-accounts from an earlier
+run. The canary is random per run, lives only in memory, and the runner aborts if it ever appears in an
+output; the result file holds hashes, tx links, OutLayer's refusal messages and logs, no key and no canary.
+Sub-account keys exist only in memory; `--keep` skips cleanup (then the sub-accounts stay unreachable).

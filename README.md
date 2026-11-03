@@ -10,6 +10,13 @@ call through KeyLease; one pinned, open-source proxy build in an Intel TDX encla
 open the key. Revoke in one click; the next call is refused. The full plan is in
 [docs/BUILD_BRIEF.md](docs/BUILD_BRIEF.md).
 
+## Upgrade policy
+
+The secret lock trusts one contract account, so that contract is the gate for every lease. On testnet it
+stays upgradable until code freeze (13 Nov 2026, 18:00 CET); then all its full-access keys are removed and
+it can no longer change. Any later upgrade is deployed to a **new contract id**, and key owners re-point
+their lock to it. See [threat model T19](docs/THREAT_MODEL.md).
+
 ## Develop
 
 Requires Node ≥ 22.18, pnpm 10, Rust stable.
