@@ -169,3 +169,5 @@ from crates.io stays as the fallback.
 - wallet-selector gets an explicit network object, so it talks to `rpc.testnet.near.org` only.
 - Meteor's SDK needs `near-api-js` 6 as a peer; the web app pins 6.5.1 (the CLI keeps 7).
 - Wallet code loads after first paint (dynamic import), so the first screen does not wait for it.
+- **Decided by Patrick (3 Nov):** MetaMask through the injected connector only; AppKit stays out. A Reown
+  project id exists (`NEXT_PUBLIC_REOWN_PROJECT_ID`, env only) for a later, optional WalletConnect PR.
