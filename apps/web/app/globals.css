@@ -192,3 +192,38 @@ select {
 .bad {
   color: var(--bad);
 }
+
+.share pre {
+  overflow-x: auto;
+  background: #f4f4f4;
+  padding: 0.75rem;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.copies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.qr {
+  display: block;
+  margin: 0.5rem 0;
+}
+
+.radio {
+  display: flex;
+  font-weight: 400;
+  gap: 0.25rem;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.facts dt {
+  font-weight: 600;
+}

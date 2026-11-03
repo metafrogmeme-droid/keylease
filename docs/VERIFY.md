@@ -269,6 +269,13 @@ demo`, Seal and add key, confirm two transactions. Expect the field empty at onc
    call on `/models`, 0.025 NEAR). Expect `✓ The key works: the API answered HTTP 200 through the proxy.`
    and a `receipt tx` link.
 
+5. Your keys → Share on `web demo`: grantee `<you>.testnet` (or an agent account), preset `Demo, 1 hour,
+10 calls`, Create lease and share, confirm one transaction. Expect a Share box `Lease <n> for <grantee>`
+   with the link `…/lease/?id=<n>`, a QR code and Copy Link · SDK · near CLI · MCP; no snippet holds the key.
+   Open the link: `Lease <n>`, status `active`, `0 used, 10 left of 10`, `in 1 h`, endpoint `/chat/completions`.
+6. From a shell with the grantee's key in your keychain, the copied near CLI command makes one leased call
+   (same as `kl call`, step 7).
+
 ## Hosted on Vercel (D3, E-017)
 
 Vercel Hobby, from this repo. Patrick logs in and deploys; nothing here holds a Vercel token.
