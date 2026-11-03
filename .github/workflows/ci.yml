@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # PR text lint reads the current title and body
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event.action == 'edited' && 'text' || 'full' }}
@@ -117,7 +118,8 @@ jobs:
       # Last on purpose: a bad PR description must not skip the code checks above.
       - name: PR title and body lint
         if: github.event_name == 'pull_request'
+        # Read the PR as it is now, not the event payload, so a re-run after an edit sees the edit.
         env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | node tools/repo-lint/src/cli.ts text
+          GH_TOKEN: ${{ github.token }}
+          PR_API: repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+        run: set -o pipefail; gh api "$PR_API" --jq '.title + "\n" + (.body // "")' | node tools/repo-lint/src/cli.ts text

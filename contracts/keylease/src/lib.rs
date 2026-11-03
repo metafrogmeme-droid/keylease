@@ -1,0 +1,376 @@
+//! KeyLease contract (PR 3: core). An owner registers a sealed API key once and lends calls, not the key.
+//!
+//! The key itself lives in OutLayer Secrets under the owner's account (locked to this contract and the
+//! proxy build); this contract keeps only its public description and the leases. `use_lease` is the gate:
+//! it checks the lease and uses one call. PR 5 makes it request the OutLayer run.
+#![allow(clippy::needless_pass_by_value)] // #[near] methods take owned arguments.
+#![allow(missing_docs)] // #[near] generates undocumented items (ext structs, wrappers).
+
+mod check;
+mod events;
+mod validate;
+mod views;
+
+#[cfg(test)]
+mod tests;
+
+pub use check::check;
+pub use keylease_reasons::Refusal;
+pub use views::{CallCheck, KeyView, LeaseStatus, LeaseView};
+
+use near_sdk::json_types::U64;
+use near_sdk::store::{IterableSet, LookupMap};
+use near_sdk::{
+    env, near, require, AccountId, BorshStorageKey, CryptoHash, NearToken, PanicOnDefault, Promise,
+};
+
+/// Most keys one owner may register (storage griefing bound, T7).
+pub const MAX_KEYS_PER_OWNER: u32 = 50;
+/// Most leases one key may ever create (storage griefing bound, T7).
+pub const MAX_LEASES_PER_KEY: u32 = 200;
+
+/// Which kind of API the key opens; drives presets and request shapes in the proxy.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Provider {
+    /// NEAR AI Cloud (OpenAI-compatible, TEE inference).
+    NearAiCloud,
+    /// Any OpenAI-compatible API.
+    OpenAiCompatible,
+    /// Any Anthropic-compatible API.
+    AnthropicCompatible,
+    /// Any other HTTPS API under the key's base URL.
+    Custom,
+}
+
+/// A registered key. The secret value is never here.
+#[near(serializers = [borsh])]
+#[derive(Clone, Debug)]
+pub struct KeyRecord {
+    /// Account that owns the sealed secret and the key's leases.
+    pub owner: AccountId,
+    /// API kind.
+    pub provider: Provider,
+    /// Only host (and path prefix) the proxy may call with this key.
+    pub base_url: String,
+    /// OutLayer secret profile under `owner` that holds the key.
+    pub secret_profile: String,
+    /// Owner's name for the key.
+    pub label: String,
+    /// Block time of registration, ns.
+    pub created_at: u64,
+    /// Bumped by `revoke_all`: leases created under an older epoch are revoked.
+    pub revoke_epoch: u32,
+    /// Leases created so far (bounded by `MAX_LEASES_PER_KEY`).
+    pub leases_created: u32,
+}
+
+/// A lease: the right to make `calls_total` calls to `endpoints` until `expires_at`.
+#[near(serializers = [borsh])]
+#[derive(Clone, Debug)]
+pub struct Lease {
+    /// The key this lease uses.
+    pub key_id: u64,
+    /// Key owner at creation (the one who may revoke).
+    pub owner: AccountId,
+    /// Account allowed to call.
+    pub grantee: AccountId,
+    /// Calls granted.
+    pub calls_total: u32,
+    /// Calls used so far.
+    pub calls_used: u32,
+    /// Expiry, block time ns.
+    pub expires_at: u64,
+    /// Exact endpoint paths this lease may call.
+    pub endpoints: Vec<String>,
+    /// Revoked one by one.
+    pub revoked: bool,
+    /// Key's revoke epoch at creation.
+    pub key_epoch: u32,
+    /// Owner's revoke epoch at creation.
+    pub owner_epoch: u32,
+    /// Block time of creation, ns.
+    pub created_at: u64,
+}
+
+#[derive(BorshStorageKey)]
+#[near]
+enum StorageKey {
+    Keys,
+    Leases,
+    OwnerEpochs,
+    KeysByOwner,
+    KeysByOwnerSet { owner: CryptoHash },
+    LeasesByOwner,
+    LeasesByOwnerSet { owner: CryptoHash },
+    LeasesByGrantee,
+    LeasesByGranteeSet { grantee: CryptoHash },
+}
+
+/// Contract state.
+#[near(contract_state)]
+#[derive(PanicOnDefault)]
+pub struct KeyLease {
+    keys: LookupMap<u64, KeyRecord>,
+    leases: LookupMap<u64, Lease>,
+    owner_epochs: LookupMap<AccountId, u32>,
+    keys_by_owner: LookupMap<AccountId, IterableSet<u64>>,
+    leases_by_owner: LookupMap<AccountId, IterableSet<u64>>,
+    leases_by_grantee: LookupMap<AccountId, IterableSet<u64>>,
+    next_key_id: u64,
+    next_lease_id: u64,
+}
+
+#[near]
+impl KeyLease {
+    /// Fresh state.
+    #[init]
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            keys: LookupMap::new(StorageKey::Keys),
+            leases: LookupMap::new(StorageKey::Leases),
+            owner_epochs: LookupMap::new(StorageKey::OwnerEpochs),
+            keys_by_owner: LookupMap::new(StorageKey::KeysByOwner),
+            leases_by_owner: LookupMap::new(StorageKey::LeasesByOwner),
+            leases_by_grantee: LookupMap::new(StorageKey::LeasesByGrantee),
+            next_key_id: 0,
+            next_lease_id: 0,
+        }
+    }
+
+    /// Register a key the caller sealed in OutLayer Secrets. Attach storage; the rest is refunded.
+    #[payable]
+    pub fn add_key(
+        &mut self,
+        provider: Provider,
+        base_url: String,
+        secret_profile: String,
+        label: String,
+    ) -> U64 {
+        let before = env::storage_usage();
+        ok(validate::base_url(&base_url));
+        ok(validate::profile(&secret_profile));
+        ok(validate::label(&label));
+        let owner = env::predecessor_account_id();
+        let id = self.next_key_id;
+        self.next_key_id += 1;
+        let set = self.keys_by_owner.entry(owner.clone()).or_insert_with(|| {
+            IterableSet::new(StorageKey::KeysByOwnerSet {
+                owner: env::sha256_array(owner.as_bytes()),
+            })
+        });
+        require!(set.len() < MAX_KEYS_PER_OWNER, "too many keys for this owner");
+        set.insert(id);
+        set.flush(); // nested sets write on drop; flush now so the storage charge below is exact
+        let record = KeyRecord {
+            owner: owner.clone(),
+            provider,
+            base_url,
+            secret_profile,
+            label,
+            created_at: env::block_timestamp(),
+            revoke_epoch: 0,
+            leases_created: 0,
+        };
+        events::key_added(id, &record);
+        self.keys.insert(id, record);
+        self.flush_and_settle(before, &owner);
+        U64(id)
+    }
+
+    /// Rename a key. Owner only.
+    #[payable]
+    pub fn update_key_label(&mut self, key_id: U64, label: String) {
+        let before = env::storage_usage();
+        ok(validate::label(&label));
+        let owner = env::predecessor_account_id();
+        let key = self.owned_key_mut(key_id.0, &owner);
+        key.label = label;
+        self.flush_and_settle(before, &owner);
+    }
+
+    /// Remove a key. Every lease on it stops working at once; their records stay for history.
+    /// Freed storage is refunded to the owner.
+    pub fn remove_key(&mut self, key_id: U64) {
+        let before = env::storage_usage();
+        let owner = env::predecessor_account_id();
+        self.owned_key_mut(key_id.0, &owner);
+        self.keys.remove(&key_id.0);
+        if let Some(set) = self.keys_by_owner.get_mut(&owner) {
+            set.remove(&key_id.0);
+            set.flush();
+        }
+        events::key_removed(key_id.0, &owner);
+        self.flush_and_settle(before, &owner);
+    }
+
+    /// Lend calls on a key: `calls` calls to exactly these `endpoints` until `expires_at` (block time, ns).
+    #[payable]
+    pub fn create_lease(
+        &mut self,
+        key_id: U64,
+        grantee: AccountId,
+        calls: u32,
+        expires_at: U64,
+        endpoints: Vec<String>,
+    ) -> U64 {
+        let before = env::storage_usage();
+        ok(validate::calls(calls));
+        ok(validate::expiry(expires_at.0, env::block_timestamp()));
+        ok(validate::endpoints(&endpoints));
+        let owner = env::predecessor_account_id();
+        let owner_epoch = self.owner_epoch(&owner);
+        let key = self.owned_key_mut(key_id.0, &owner);
+        require!(
+            key.leases_created < MAX_LEASES_PER_KEY,
+            "this key has reached its lease limit"
+        );
+        key.leases_created += 1;
+        let key_epoch = key.revoke_epoch;
+        let id = self.next_lease_id;
+        self.next_lease_id += 1;
+        let lease = Lease {
+            key_id: key_id.0,
+            owner: owner.clone(),
+            grantee: grantee.clone(),
+            calls_total: calls,
+            calls_used: 0,
+            expires_at: expires_at.0,
+            endpoints,
+            revoked: false,
+            key_epoch,
+            owner_epoch,
+            created_at: env::block_timestamp(),
+        };
+        events::lease_created(id, &lease);
+        self.leases.insert(id, lease);
+        Self::index(&mut self.leases_by_owner, &owner, id, |h| {
+            StorageKey::LeasesByOwnerSet { owner: h }
+        });
+        Self::index(&mut self.leases_by_grantee, &grantee, id, |h| {
+            StorageKey::LeasesByGranteeSet { grantee: h }
+        });
+        self.flush_and_settle(before, &owner);
+        U64(id)
+    }
+
+    /// Revoke one lease. Key owner only; the next call is refused.
+    pub fn revoke(&mut self, lease_id: U64) {
+        let caller = env::predecessor_account_id();
+        let lease = self
+            .leases
+            .get_mut(&lease_id.0)
+            .unwrap_or_else(|| refuse(Refusal::LeaseNotFound));
+        require!(lease.owner == caller, "only the key owner can revoke this lease");
+        lease.revoked = true;
+        events::lease_revoked(lease_id.0, &caller);
+    }
+
+    /// Revoke every lease on one key, in one step whatever their number.
+    pub fn revoke_all(&mut self, key_id: U64) {
+        let caller = env::predecessor_account_id();
+        let key = self.owned_key_mut(key_id.0, &caller);
+        key.revoke_epoch += 1;
+        events::revoked_all(Some(key_id.0), &caller);
+    }
+
+    /// Panic button: revoke every lease of the caller on every key, in one step.
+    pub fn revoke_all_owner(&mut self) {
+        let caller = env::predecessor_account_id();
+        let next = self.owner_epoch(&caller) + 1;
+        self.owner_epochs.insert(caller.clone(), next);
+        events::revoked_all(None, &caller);
+    }
+
+    /// Use one call of a lease on `endpoint`. Refuses with `<code>: <hint>` (docs/WORDING.md).
+    /// Returns the call number (1-based). PR 5 makes this request the OutLayer run.
+    pub fn use_lease(&mut self, lease_id: U64, endpoint: String) -> u32 {
+        let caller = env::predecessor_account_id();
+        if let Err(r) = self.check_internal(lease_id.0, &caller, &endpoint) {
+            refuse(r);
+        }
+        let lease = self
+            .leases
+            .get_mut(&lease_id.0)
+            .unwrap_or_else(|| refuse(Refusal::LeaseNotFound));
+        lease.calls_used += 1;
+        let n = lease.calls_used;
+        events::call_authorized(lease_id.0, &caller, &endpoint, n);
+        n
+    }
+}
+
+impl KeyLease {
+    fn owner_epoch(&self, owner: &AccountId) -> u32 {
+        self.owner_epochs.get(owner).copied().unwrap_or(0)
+    }
+
+    fn owned_key_mut(&mut self, key_id: u64, caller: &AccountId) -> &mut KeyRecord {
+        let key = self
+            .keys
+            .get_mut(&key_id)
+            .unwrap_or_else(|| env::panic_str("no key has this id"));
+        require!(&key.owner == caller, "only the key owner can do this");
+        key
+    }
+
+    fn check_internal(&self, lease_id: u64, caller: &AccountId, endpoint: &str) -> Result<(), Refusal> {
+        let lease = self.leases.get(&lease_id);
+        let key = lease.and_then(|l| self.keys.get(&l.key_id));
+        let owner_epoch = lease.map_or(0, |l| self.owner_epoch(&l.owner));
+        check(lease, key, owner_epoch, caller, endpoint, env::block_timestamp())
+    }
+
+    fn index(
+        map: &mut LookupMap<AccountId, IterableSet<u64>>,
+        account: &AccountId,
+        id: u64,
+        prefix: impl FnOnce(CryptoHash) -> StorageKey,
+    ) {
+        let set = map
+            .entry(account.clone())
+            .or_insert_with(|| IterableSet::new(prefix(env::sha256_array(account.as_bytes()))));
+        set.insert(id);
+        set.flush();
+    }
+
+    /// Write state, then charge the storage it grew by to `payer` (refunding the rest of the deposit),
+    /// or refund what it shrank by.
+    fn flush_and_settle(&mut self, before: u64, payer: &AccountId) {
+        self.keys.flush();
+        self.leases.flush();
+        self.keys_by_owner.flush();
+        self.leases_by_owner.flush();
+        self.leases_by_grantee.flush();
+        let after = env::storage_usage();
+        let attached = env::attached_deposit().as_yoctonear();
+        let byte = env::storage_byte_cost().as_yoctonear();
+        let refund = if after >= before {
+            let cost = u128::from(after - before) * byte;
+            require!(
+                attached >= cost,
+                format!("attach at least {cost} yoctoNEAR for storage")
+            );
+            attached - cost
+        } else {
+            attached + u128::from(before - after) * byte
+        };
+        if refund > 0 {
+            Promise::new(payer.clone())
+                .transfer(NearToken::from_yoctonear(refund))
+                .detach();
+        }
+    }
+}
+
+fn ok(r: Result<(), &'static str>) {
+    if let Err(msg) = r {
+        env::panic_str(msg);
+    }
+}
+
+/// Panic with a refusal in the shared `<code>: <hint>` form.
+fn refuse(r: Refusal) -> ! {
+    env::panic_str(&format!("{}: {}", r.code(), r.hint()))
+}

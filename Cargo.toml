@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "contracts/*"]
 # spike/ is a throwaway day-1 experiment with its own workspace (docs/OPEN_QUESTIONS.md Q-001/Q-002).
 exclude = ["spike"]
 
