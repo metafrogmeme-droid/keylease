@@ -1,0 +1,17 @@
+{
+  "name": "@keylease/cli",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Owner-run KeyLease CLI for NEAR testnet: deploy, add a key, lease, call, receipts, revoke.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "kl": "node src/main.ts"
+  },
+  "dependencies": {
+    "@keylease/outlayer": "workspace:*",
+    "near-api-js": "^7.4.0"
+  }
+}

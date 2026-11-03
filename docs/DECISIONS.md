@@ -142,3 +142,15 @@ from crates.io stays as the fallback.
   `contracts/mock-outlayer` takes OutLayer's exact `request_execution` types and refuses what OutLayer
   refuses at commit aaf60a2 (hash and URL shape, profile shape, limits caps, deposit ≥ estimate). Unlike
   OutLayer, it also refuses unknown fields, so a typo in our call fails the sandbox tests.
+
+### E-015 (PR 6b) Testnet CLI and a private init
+
+- `cli/` (`kl`) is the owner's tool for testnet: `deploy`, `add-key`, `lease`, `call`, `receipts`, `status`,
+  `revoke`. It refuses non-`.testnet` ids and a non-testnet RPC, reads keys from env only, and prints fixed
+  `label  value` lines, so docs/VERIFY.md states the expected output of every step.
+- The contract account gets the owner's public key, so the owner can upgrade it until code freeze; then that
+  key is removed (README "Upgrade policy").
+- `new(admin, …)` is now `#[private]` and `kl deploy` sends the code and `new` in one transaction: nobody can
+  initialise a fresh deploy first (T21). A sandbox test shows a stranger's `new` failing.
+- The proxy goes to FastFS by default; `--proxy-url` takes a self-hosted copy, checked like OutLayer's worker
+  fetches it before anything goes on chain.
