@@ -1,1 +1,1 @@
-doc-valid-idents = ["KeyLease", "OutLayer", "NEAR", "WebAssembly", "..", ".."]
+doc-valid-idents = ["KeyLease", "OutLayer", "NEAR", "WebAssembly", ".."]
