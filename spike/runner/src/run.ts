@@ -119,102 +119,116 @@ async function main(): Promise<void> {
   if ((await provider.getNetworkId()) !== "testnet") throw new Error("RPC is not testnet");
   const ownerAcc = new Account(owner, provider, env("NEAR_PRIVATE_KEY") as KeyPairString);
 
-  // Sub-accounts with fresh keys held in memory only; deleted at the end unless --keep.
+  // A leftover from an earlier run would make the rows ambiguous: stop before spending anything.
+  for (const id of [kl, decoy, agent]) {
+    const exists = await provider.viewAccount({ accountId: id }).then(
+      () => true,
+      () => false,
+    );
+    if (exists) throw new Error(`${id} already exists; delete it or use a fresh owner account`);
+  }
+
+  // Sub-accounts with fresh keys held in memory only; deleted at the end (also on failure) unless --keep.
   const accounts = new Map<string, Account>();
-  for (const [id, near] of [
-    [kl, "3"],
-    [decoy, "3"],
-    [agent, "1"],
-  ] as const) {
-    const kp = KeyPair.fromRandom("ed25519");
-    await ownerAcc.createAccount({
-      newAccountId: id,
-      publicKey: kp.getPublicKey(),
-      nearToTransfer: nearToYocto(near),
-    });
-    accounts.set(id, new Account(id, provider, kp.toString()));
-  }
-  const acc = (id: string): Account => {
-    const a = accounts.get(id) ?? (id === owner ? ownerAcc : undefined);
-    if (!a) throw new Error(`no account ${id}`);
-    return a;
-  };
-  for (const id of [kl, decoy]) {
-    await acc(id).deployContract(caller);
-    await acc(id).callFunction({ contractId: id, methodName: "new", args: { outlayer: OUTLAYER } });
-  }
-
-  // Publish both builds on FastFS (the call itself fails on chain by design; the data is indexed).
-  for (const [hash, wasm] of [
-    [hA, proxyA],
-    [hB, proxyB],
-  ] as const) {
-    await ownerAcc.signAndSendTransaction({
-      receiverId: OUTLAYER,
-      actions: [actions.functionCall(FASTFS_METHOD, fastfsPayload(hash, wasm), teraToGas(300), 0n)],
-      throwOnFailure: false,
-    });
-  }
-  await waitForUrl(urlA, hA);
-  await waitForUrl(urlB, hB);
-
-  // Seal the canary twice: row A (accessor A, lock A) and row B (accessor B, lock still names A).
+  const storedRows: string[] = [];
   const canary = randomBytes(32).toString("hex");
   const canaryPrefix = sha256(Buffer.from(canary)).slice(0, 8);
   const secrets = JSON.stringify({ SPIKE_SECRET: canary });
-  await storeRow(ownerAcc, owner, hA, secrets, leaseLock(kl, hA));
-  await storeRow(ownerAcc, owner, hB, secrets, leaseLock(kl, hA));
+  try {
+    for (const [id, near] of [
+      [kl, "3"],
+      [decoy, "3"],
+      [agent, "1"],
+    ] as const) {
+      const kp = KeyPair.fromRandom("ed25519");
+      await ownerAcc.createAccount({
+        newAccountId: id,
+        publicKey: kp.getPublicKey(),
+        nearToTransfer: nearToYocto(near),
+      });
+      accounts.set(id, new Account(id, provider, kp.toString()));
+    }
+    const acc = (id: string): Account => {
+      const a = accounts.get(id) ?? (id === owner ? ownerAcc : undefined);
+      if (!a) throw new Error(`no account ${id}`);
+      return a;
+    };
+    for (const id of [kl, decoy]) {
+      await acc(id).deployContract(caller);
+      await acc(id).callFunction({ contractId: id, methodName: "new", args: { outlayer: OUTLAYER } });
+    }
 
-  // U128 comes back as a JSON string of yoctoNEAR; attach twice the estimate (unused compute is refunded).
-  const estimate = await provider.callFunction<string>({
-    contractId: OUTLAYER,
-    method: "estimate_execution_cost",
-    args: { resource_limits: LIMITS },
-  });
-  if (typeof estimate !== "string" || !/^\d+$/u.test(estimate)) throw new Error("unexpected cost estimate");
-  const attach = BigInt(estimate) * 2n;
+    // Publish both builds on FastFS (the call itself fails on chain by design; the data is indexed).
+    for (const [hash, wasm] of [
+      [hA, proxyA],
+      [hB, proxyB],
+    ] as const) {
+      await ownerAcc.signAndSendTransaction({
+        receiverId: OUTLAYER,
+        actions: [actions.functionCall(FASTFS_METHOD, fastfsPayload(hash, wasm), teraToGas(300), 0n)],
+        throwOnFailure: false,
+      });
+    }
+    await waitForUrl(urlA, hA);
+    await waitForUrl(urlB, hB);
 
-  for (const r of rows) {
-    const runArgs = (url: string, hash: string) => ({
-      wasm_url: url,
-      wasm_hash: hash,
-      secret_owner: owner,
-      profile: PROFILE,
-      input: r.id === "S6" ? JSON.stringify({ pad: PAD }) : null,
+    // Seal the canary twice: row A (accessor A, lock A) and row B (accessor B, lock still names A).
+    await storeRow(provider, ownerAcc, owner, hA, secrets, leaseLock(kl, hA));
+    storedRows.push(hA);
+    await storeRow(provider, ownerAcc, owner, hB, secrets, leaseLock(kl, hA));
+    storedRows.push(hB);
+
+    // U128 comes back as a JSON string of yoctoNEAR; attach twice the estimate (unused compute is refunded).
+    const estimate = await provider.callFunction<string>({
+      contractId: OUTLAYER,
+      method: "estimate_execution_cost",
+      args: { resource_limits: LIMITS },
     });
-    const call =
-      r.id === "S3"
-        ? { contractId: OUTLAYER, methodName: "request_execution", args: directArgs(urlA, hA, owner) }
-        : {
-            contractId: r.id === "S2" ? decoy : kl,
-            methodName: "run",
-            args: r.id === "S4" ? runArgs(urlB, hB) : runArgs(urlA, hA),
-          };
-    const out = await sendAndWait(
-      provider,
-      acc(r.signer),
-      call.contractId,
-      call.methodName,
-      call.args,
-      attach,
-    );
-    r.tx = out.hash;
-    if (out.text.includes(canary)) throw new Error("canary value came back in clear: stop and report");
-    r.logs = out.logs;
-    const done = completion(out.logs);
-    const opened =
-      done?.success === true &&
-      out.text.includes(`"secret_sha256_prefix":"${canaryPrefix}"`) &&
-      (r.id !== "S6" || out.text.length > PAD);
-    r.outputBytes = out.text.length;
-    // A refusal counts only when OutLayer accepted the request and reported the run as failed;
-    // anything else (a panic before OutLayer, no completion event) is "error", never a pass.
-    r.observed = opened ? "opens" : done?.success === false ? "refused" : "error";
-    r.reason = done?.error_message ?? undefined;
-    r.pass = r.observed === r.expect;
-  }
+    if (typeof estimate !== "string" || !/^\d+$/u.test(estimate)) throw new Error("unexpected cost estimate");
+    const attach = BigInt(estimate) * 2n;
 
-  if (!KEEP) await cleanup(ownerAcc, owner, [hA, hB], [kl, decoy, agent].map(acc));
+    for (const r of rows) {
+      const runArgs = (url: string, hash: string) => ({
+        wasm_url: url,
+        wasm_hash: hash,
+        secret_owner: owner,
+        profile: PROFILE,
+        input: r.id === "S6" ? JSON.stringify({ pad: PAD }) : null,
+      });
+      const call =
+        r.id === "S3"
+          ? { contractId: OUTLAYER, methodName: "request_execution", args: directArgs(urlA, hA, owner) }
+          : {
+              contractId: r.id === "S2" ? decoy : kl,
+              methodName: "run",
+              args: r.id === "S4" ? runArgs(urlB, hB) : runArgs(urlA, hA),
+            };
+      const out = await sendAndWait(
+        provider,
+        acc(r.signer),
+        call.contractId,
+        call.methodName,
+        call.args,
+        attach,
+      );
+      r.tx = out.hash;
+      if (out.text.includes(canary)) throw new Error("canary value came back in clear: stop and report");
+      r.logs = out.logs;
+      const done = completion(out.logs);
+      const opened =
+        done?.success === true &&
+        out.text.includes(`"secret_sha256_prefix":"${canaryPrefix}"`) &&
+        (r.id !== "S6" || out.text.length > PAD);
+      r.outputBytes = out.text.length;
+      // A refusal counts only when OutLayer accepted the request and reported the run as failed;
+      // anything else (a panic before OutLayer, no completion event) is "error", never a pass.
+      r.observed = opened ? "opens" : done?.success === false ? "refused" : "error";
+      r.reason = done?.error_message ?? undefined;
+      r.pass = r.observed === r.expect;
+    }
+  } finally {
+    if (!KEEP) await cleanup(ownerAcc, owner, storedRows, [...accounts.values()]);
+  }
 
   const result = {
     at: new Date().toISOString(),
@@ -292,6 +306,7 @@ function directArgs(url: string, hash: string, owner: string): Record<string, un
 }
 
 async function storeRow(
+  provider: JsonRpcProvider,
   owner: Account,
   ownerId: string,
   hash: string,
@@ -312,17 +327,25 @@ async function storeRow(
     throw new Error(`/secrets/pubkey answered ${String(res.status)}: ${(await res.text()).slice(0, 300)}`);
   const { pubkey } = (await res.json()) as { pubkey?: string };
   if (!pubkey) throw new Error("no pubkey in answer");
+  const args = {
+    accessor: { WasmHash: { hash } },
+    profile: PROFILE,
+    encrypted_secrets_base64: seal(pubkey, Buffer.from(secrets)),
+    access,
+    vault_id: null,
+  };
+  // Attach exactly OutLayer's own storage quote for this row (the view takes the same args + owner).
+  const quote = await provider.callFunction<string>({
+    contractId: OUTLAYER,
+    method: "estimate_storage_cost",
+    args: { ...args, owner: ownerId },
+  });
+  if (typeof quote !== "string" || !/^\d+$/u.test(quote)) throw new Error("unexpected storage quote");
   await owner.callFunction({
     contractId: OUTLAYER,
     methodName: "store_secrets",
-    args: {
-      accessor: { WasmHash: { hash } },
-      profile: PROFILE,
-      encrypted_secrets_base64: seal(pubkey, Buffer.from(secrets)),
-      access,
-      vault_id: null,
-    },
-    deposit: nearToYocto("0.1"),
+    args,
+    deposit: BigInt(quote),
     gas: teraToGas(100),
   });
 }
@@ -330,23 +353,36 @@ async function storeRow(
 const wasmHashValue = (h: string): string => (wasmHash(h) as { WasmHash: { hash: string } }).WasmHash.hash;
 
 async function waitForUrl(url: string, hash: string): Promise<void> {
-  for (let i = 0; i < 30; i += 1) {
+  for (let i = 0; i < 75; i += 1) {
     const r = await fetch(url).catch(() => undefined);
     if (r?.ok && sha256(new Uint8Array(await r.arrayBuffer())) === hash) return;
     await new Promise((ok) => setTimeout(ok, 4000));
   }
-  throw new Error(`FastFS did not serve ${url} with the right hash within 2 minutes`);
+  throw new Error(`FastFS did not serve ${url} with the right hash within 5 minutes`);
 }
 
-async function cleanup(owner: Account, ownerId: string, hashes: string[], subs: Account[]): Promise<void> {
-  for (const hash of hashes) {
-    await owner.callFunction({
-      contractId: OUTLAYER,
-      methodName: "delete_secrets",
-      args: { accessor: { WasmHash: { hash } }, profile: PROFILE },
+/** Best effort: every step is tried, failures are reported, the original error (if any) wins. */
+async function cleanup(
+  owner: Account,
+  ownerId: string,
+  hashes: readonly string[],
+  subs: readonly Account[],
+): Promise<void> {
+  const step = async (what: string, fn: () => Promise<unknown>): Promise<void> => {
+    await fn().catch((e: unknown) => {
+      console.error(`cleanup: ${what} failed: ${e instanceof Error ? e.message : String(e)}`);
     });
+  };
+  for (const hash of hashes) {
+    await step(`delete row ${hash.slice(0, 12)}`, () =>
+      owner.callFunction({
+        contractId: OUTLAYER,
+        methodName: "delete_secrets",
+        args: { accessor: { WasmHash: { hash } }, profile: PROFILE },
+      }),
+    );
   }
-  for (const a of subs) await a.deleteAccount(ownerId);
+  for (const a of subs) await step(`delete ${a.accountId}`, () => a.deleteAccount(ownerId));
 }
 
 main().catch((e: unknown) => {
