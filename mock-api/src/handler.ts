@@ -9,7 +9,8 @@
  *   GET  /debug/headers        returns the request headers, key included: a deliberately leaky endpoint
  *                              that shows the proxy's tripwire withholding an answer that carries the key
  *
- * Every request needs `Authorization: Bearer <MOCK_API_KEY>`; the key comes from env only. Web APIs only (no
+ * HEAD answers like GET with the body left out (so `curl -I` works). Every request needs
+ * `Authorization: Bearer <MOCK_API_KEY>`; the key comes from env only. Web APIs only (no
  * Node built-ins), so the same code runs as a Vercel edge function (apps/web/functions/mock.ts).
  *
  * Shapes follow the OpenAI API reference, as NEAR AI Cloud and the other OpenAI-compatible providers do:
@@ -86,6 +87,10 @@ function lastUserMessage(body: unknown): string {
 }
 
 export async function handle(req: Request, env: Env): Promise<Response> {
+  if (req.method === "HEAD") {
+    const res = await handle(new Request(req.url, { method: "GET", headers: req.headers }), env);
+    return new Response(null, { status: res.status, headers: res.headers });
+  }
   if (!env.MOCK_API_KEY) return error(500, "not_configured", "MOCK_API_KEY is not set on the server.");
   if (!authorized(req.headers.get("authorization"), env.MOCK_API_KEY)) {
     return error(401, "unauthorized", "Send Authorization: Bearer <key>.");
