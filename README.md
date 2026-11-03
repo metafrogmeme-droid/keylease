@@ -39,7 +39,7 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 
 | Path                      | What                                                                                                                                            |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contracts/keylease`      | NEAR contract: keys, leases, quotas, expiry, endpoints, revoke                                                                                  |
+| `contracts/keylease`      | NEAR contract: keys, leases, quotas, expiry, endpoints, revoke; Key Pass (NEP-171)                                                              |
 | `contracts/mock-outlayer` | test double for OutLayer, sandbox tests only                                                                                                    |
 | `tests/sandbox`           | end-to-end tests in a local NEAR sandbox                                                                                                        |
 | `wasm/keylease-proxy`     | proxy run in the OutLayer TEE: opens the key, calls one endpoint, withholds the key                                                             |

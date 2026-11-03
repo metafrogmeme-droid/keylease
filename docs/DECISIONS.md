@@ -203,3 +203,16 @@ from crates.io stays as the fallback.
   only when `NEXT_PUBLIC_KL_E2E=1` (next.config.ts alias); otherwise to a stub that throws.
   `pnpm check:release` fails any build that contains the test wallet's marker; CI and the Vercel build
   run it.
+
+### E-019 (PR 10) Key Pass: the lease is the token
+
+- Every lease is an NEP-171 token with `token_id` = lease id and `owner_id` = the lease's grantee; NEP-177
+  metadata says what it allows ("Key Pass 7", calls, endpoints, expiry in Unix ms) and NEP-181 lists them.
+  Written in the contract (`contracts/keylease/src/nft.rs`) instead of `near-contract-standards`, because
+  the owner of the token _is_ `Lease.grantee`: one source of truth, no second owner map to keep in step.
+- Transfers are opt-in per lease: `create_lease(..., transferable)` defaults to false, because an owner who
+  leases to "my agent" has not agreed to that agent selling the lease on. The demo's Key Pass lease sets it.
+- No approvals (NEP-178), so no third party can move a Key Pass. `nft_transfer_call` follows NEP-171: the
+  Key Pass returns to the sender when the receiver's `nft_on_transfer` returns true or fails.
+- A revoked lease cannot be transferred (nothing to pass on); an expired or used-up one can, and stays
+  refused for its new holder.

@@ -247,3 +247,66 @@ async fn only_the_contract_itself_can_initialise_it() -> anyhow::Result<()> {
     assert_eq!(config["admin"], kl.id().as_str());
     Ok(())
 }
+
+#[tokio::test]
+async fn key_pass_transfer_moves_the_lease() -> anyhow::Result<()> {
+    let w = world().await?;
+    let key: String = w
+        .alice
+        .call(w.kl.id(), "add_key")
+        .args_json(
+            json!({ "provider": "NearAiCloud", "base_url": "https://cloud-api.near.ai",
+                           "secret_profile": "main", "label": "demo" }),
+        )
+        .deposit(NearToken::from_millinear(100))
+        .transact()
+        .await?
+        .into_result()?
+        .json()?;
+    let now_ns = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos(),
+    )?;
+    let lease: String = w
+        .alice
+        .call(w.kl.id(), "create_lease")
+        .args_json(json!({ "key_id": key, "grantee": w.bob.id(), "calls": 3,
+                           "expires_at": (now_ns + 3_600_000_000_000).to_string(),
+                           "endpoints": ["/v1/chat/completions"], "transferable": true }))
+        .deposit(NearToken::from_millinear(100))
+        .transact()
+        .await?
+        .into_result()?
+        .json()?;
+
+    // bob uses one call, then hands the Key Pass to mallory (NEP-171, exactly 1 yoctoNEAR)
+    assert!(use_lease(&w, &w.bob, &lease, "/v1/chat/completions")
+        .await?
+        .is_ok());
+    w.bob
+        .call(w.kl.id(), "nft_transfer")
+        .args_json(json!({ "receiver_id": w.mallory.id(), "token_id": lease }))
+        .deposit(NearToken::from_yoctonear(1))
+        .transact()
+        .await?
+        .into_result()?;
+
+    let token: Value =
+        w.kl.view("nft_token")
+            .args_json(json!({ "token_id": lease }))
+            .await?
+            .json()?;
+    assert_eq!(token["owner_id"], json!(w.mallory.id()));
+    let refused = use_lease(&w, &w.bob, &lease, "/v1/chat/completions").await?;
+    assert!(
+        matches!(&refused, Err(e) if e.contains("not_lease_holder")),
+        "{refused:?}"
+    );
+    assert!(use_lease(&w, &w.mallory, &lease, "/v1/chat/completions")
+        .await?
+        .is_ok());
+    let r2 = receipt(&w, &lease, 2).await?;
+    assert_eq!(r2["caller"], json!(w.mallory.id()));
+    Ok(())
+}
