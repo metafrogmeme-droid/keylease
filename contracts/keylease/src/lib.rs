@@ -8,6 +8,7 @@
 
 mod check;
 mod events;
+mod nft;
 mod run;
 mod views;
 
@@ -16,10 +17,13 @@ use keylease_rules as validate;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_nft;
+#[cfg(test)]
 mod tests_run;
 
 pub use check::check;
 pub use keylease_reasons::Refusal;
+pub use nft::{NftContractMetadata, Token, TokenMetadata};
 pub use run::{classify, CallInfo, Config, Outcome, Receipt, MIN_DEPOSIT, RECEIPT_RESERVE};
 pub use views::{CallCheck, KeyView, LeaseStatus, LeaseView};
 
@@ -94,6 +98,8 @@ pub struct Lease {
     pub key_epoch: u32,
     /// Owner's revoke epoch at creation.
     pub owner_epoch: u32,
+    /// The holder may transfer the lease as a Key Pass (NEP-171); set by the owner at creation.
+    pub transferable: bool,
     /// Block time of creation, ns.
     pub created_at: u64,
 }
@@ -220,6 +226,8 @@ impl KeyLease {
     }
 
     /// Lend calls on a key: `calls` calls to exactly these `endpoints` until `expires_at` (block time, ns).
+    /// The lease is also a Key Pass token held by `grantee`; `transferable` (default false) lets the
+    /// holder pass it on with `nft_transfer`.
     #[payable]
     pub fn create_lease(
         &mut self,
@@ -228,6 +236,7 @@ impl KeyLease {
         calls: u32,
         expires_at: U64,
         endpoints: Vec<String>,
+        transferable: Option<bool>,
     ) -> U64 {
         let before = env::storage_usage();
         ok(validate::calls(calls));
@@ -255,9 +264,11 @@ impl KeyLease {
             revoked: false,
             key_epoch,
             owner_epoch,
+            transferable: transferable.unwrap_or(false),
             created_at: env::block_timestamp(),
         };
         events::lease_created(id, &lease);
+        events::nft_mint(id, &lease.grantee);
         self.leases.insert(id, lease);
         Self::index(&mut self.leases_by_owner, &owner, id, |h| {
             StorageKey::LeasesByOwnerSet { owner: h }
@@ -337,14 +348,33 @@ impl KeyLease {
         set.flush();
     }
 
-    /// Write state, then charge the storage it grew by to `payer` (refunding the rest of the deposit),
-    /// or refund what it shrank by.
-    fn flush_and_settle(&mut self, before: u64, payer: &AccountId) {
+    pub(crate) fn flush_all(&mut self) {
         self.keys.flush();
         self.leases.flush();
         self.keys_by_owner.flush();
         self.leases_by_owner.flush();
         self.leases_by_grantee.flush();
+    }
+
+    /// Take `id` out of `account`'s index; drop the account's set when it empties (no storage left behind).
+    fn unindex(map: &mut LookupMap<AccountId, IterableSet<u64>>, account: &AccountId, id: u64) {
+        let empty = map.get_mut(account).is_some_and(|set| {
+            set.remove(&id);
+            set.flush();
+            set.is_empty()
+        });
+        if empty {
+            if let Some(mut set) = map.remove(account) {
+                set.clear();
+                set.flush();
+            }
+        }
+    }
+
+    /// Write state, then charge the storage it grew by to `payer` (refunding the rest of the deposit),
+    /// or refund what it shrank by.
+    fn flush_and_settle(&mut self, before: u64, payer: &AccountId) {
+        self.flush_all();
         let after = env::storage_usage();
         let attached = env::attached_deposit().as_yoctonear();
         let byte = env::storage_byte_cost().as_yoctonear();

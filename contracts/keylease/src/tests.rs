@@ -58,6 +58,7 @@ pub(crate) fn setup() -> Setup {
         2,
         U64(T0 + 3600 * SEC),
         vec!["/v1/chat".into()],
+        None,
     );
     Setup { c, key, lease }
 }
@@ -190,6 +191,7 @@ fn refusal_revoke_all_on_key_then_new_lease_works() {
         1,
         U64(T0 + 60 * SEC),
         vec!["/v1/chat".into()],
+        None,
     );
     assert_eq!(refusal(&s.c, fresh, "bob.testnet", "/v1/chat"), None);
 }
@@ -209,6 +211,7 @@ fn refusal_revoke_all_owner_covers_every_key() {
         5,
         U64(T0 + 60 * SEC),
         vec!["/echo".into()],
+        None,
     );
     s.c.revoke_all_owner();
     assert_eq!(
@@ -263,6 +266,7 @@ fn only_owner_leases_a_key() {
         1,
         U64(T0 + SEC),
         vec!["/v1/chat".into()],
+        None,
     );
 }
 
@@ -294,7 +298,14 @@ fn only_owner_removes_a_key() {
 #[should_panic(expected = "expiry must be in the future")]
 fn lease_needs_future_expiry() {
     let mut s = setup();
-    s.c.create_lease(s.key, acct("bob.testnet"), 1, U64(T0), vec!["/v1/chat".into()]);
+    s.c.create_lease(
+        s.key,
+        acct("bob.testnet"),
+        1,
+        U64(T0),
+        vec!["/v1/chat".into()],
+        None,
+    );
 }
 
 #[test]
@@ -307,6 +318,7 @@ fn lease_needs_calls() {
         0,
         U64(T0 + SEC),
         vec!["/v1/chat".into()],
+        None,
     );
 }
 
@@ -320,6 +332,7 @@ fn lease_endpoints_are_validated() {
         1,
         U64(T0 + SEC),
         vec!["/v1/../keys".into()],
+        None,
     );
 }
 
@@ -361,6 +374,7 @@ fn lease_limit_per_key() {
             1,
             U64(T0 + SEC),
             vec!["/v1/chat".into()],
+            None,
         );
     }
 }
@@ -375,6 +389,7 @@ fn views_list_by_owner_and_grantee_with_paging() {
             1,
             U64(T0 + SEC),
             vec!["/v1/chat".into()],
+            None,
         );
     }
     assert_eq!(

@@ -72,3 +72,25 @@ pub fn proxy_changed(c: &crate::Config) {
         json!({ "proxy_url": c.proxy_url, "proxy_hash": c.proxy_hash }),
     );
 }
+
+fn emit_nep171(event: &str, data: Value) {
+    let body = json!({ "standard": "nep171", "version": "1.2.0", "event": event, "data": [data] });
+    env::log_str(&format!("EVENT_JSON:{body}"));
+}
+
+/// NEP-171 mint: a new lease is a new Key Pass held by its grantee.
+pub fn nft_mint(id: u64, owner: &AccountId) {
+    emit_nep171(
+        "nft_mint",
+        json!({ "owner_id": owner, "token_ids": [id.to_string()] }),
+    );
+}
+
+/// NEP-171 transfer: the Key Pass (and with it the lease) moved.
+pub fn nft_transfer(id: u64, old: &AccountId, new: &AccountId, memo: Option<&str>) {
+    let mut data = json!({ "old_owner_id": old, "new_owner_id": new, "token_ids": [id.to_string()] });
+    if let Some(m) = memo {
+        data["memo"] = json!(m);
+    }
+    emit_nep171("nft_transfer", data);
+}
