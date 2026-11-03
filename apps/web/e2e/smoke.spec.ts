@@ -109,3 +109,13 @@ test("pubkey relay on the app's own origin: refuses a key value and other origin
   expect(crossSite.status()).toBe(403);
   expect((await request.get("/api/secrets/pubkey")).status()).toBe(405);
 });
+
+test("lease page: a bad link says so plainly, under the same CSP", async ({ page }) => {
+  const w = await watch(page);
+  await page.goto("/lease/?id=abc");
+  await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toContainText("no valid lease id");
+  await expect(page.getByRole("note", { name: "Network" })).toContainText("TESTNET");
+  await page.waitForLoadState("networkidle");
+  expect([...w.origins]).toEqual([new URL(page.url()).origin]);
+  expect(await w.violations()).toEqual([]);
+});

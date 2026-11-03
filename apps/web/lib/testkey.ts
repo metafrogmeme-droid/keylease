@@ -5,32 +5,17 @@
  */
 import { actionCreators } from "@near-wallet-selector/core";
 import type { Tx } from "../components/WalletProvider.tsx";
+import { leaseTx } from "./lease.ts";
 import { PROXY_ERRORS, REFUSALS, refusalIn } from "./wording.ts";
 
 const TGAS = 1_000_000_000_000n;
 export const TEST_ENDPOINT = "/models";
-export const LEASE_DEPOSIT = 50_000_000_000_000_000_000_000n; // 0.05 NEAR, unused storage refunded
+export { LEASE_DEPOSIT } from "./lease.ts";
 export const CALL_DEPOSIT = 25_000_000_000_000_000_000_000n; // 0.025 NEAR, unused compute refunded by OutLayer
 export const TEST_LEASE_NS = 10n * 60n * 1_000_000_000n;
 
 export function testLeaseTx(contractId: string, keyId: string, owner: string, nowMs: number): Tx {
-  return {
-    receiverId: contractId,
-    actions: [
-      actionCreators.functionCall(
-        "create_lease",
-        {
-          key_id: keyId,
-          grantee: owner,
-          calls: 1,
-          expires_at: (BigInt(nowMs) * 1_000_000n + TEST_LEASE_NS).toString(),
-          endpoints: [TEST_ENDPOINT],
-        },
-        50n * TGAS,
-        LEASE_DEPOSIT,
-      ),
-    ],
-  };
+  return leaseTx(contractId, keyId, owner, 1, BigInt(nowMs) * 1_000_000n + TEST_LEASE_NS, [TEST_ENDPOINT]);
 }
 
 export function testCallTx(contractId: string, leaseId: string): Tx {

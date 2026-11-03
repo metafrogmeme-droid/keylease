@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { config } from "../lib/config.ts";
 import { view } from "../lib/near-rpc.ts";
 import { failureText, returnValue, testCallTx, testLeaseTx, verdict, type Verdict } from "../lib/testkey.ts";
+import { CreateLease } from "./CreateLease.tsx";
 import { txHash, useWallet } from "./WalletProvider.tsx";
 
 export interface KeyRow {
@@ -20,6 +21,7 @@ export function KeyList({ refresh = 0 }: { readonly refresh?: number }) {
   const [keys, setKeys] = useState<KeyRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, Test>>({});
+  const [sharing, setSharing] = useState<string | null>(null);
 
   useEffect(() => {
     if (w.accountId === null) return;
@@ -90,6 +92,16 @@ export function KeyList({ refresh = 0 }: { readonly refresh?: number }) {
                   aria-label={`Test key ${k.label}`}
                 >
                   Test key
+                </button>{" "}
+                <button
+                  type="button"
+                  aria-expanded={sharing === k.key_id}
+                  aria-label={`Share key ${k.label}`}
+                  onClick={() => {
+                    setSharing(sharing === k.key_id ? null : k.key_id);
+                  }}
+                >
+                  Share
                 </button>
                 <p role="status" className={t?.kind === "done" ? (t.verdict.ok ? "ok" : "bad") : "hint"}>
                   {t?.kind === "working" && t.step}
@@ -107,6 +119,7 @@ export function KeyList({ refresh = 0 }: { readonly refresh?: number }) {
                     </>
                   )}
                 </p>
+                {sharing === k.key_id && <CreateLease keyId={k.key_id} provider={k.provider} />}
               </li>
             );
           })}
