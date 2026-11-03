@@ -122,7 +122,8 @@ tx         https://testnet.nearblocks.io/txns/<hash>
 Running it again prints `contract   keylease.<you>.testnet (already deployed)` and the same proxy lines.
 
 **4. Seal the demo key** (encrypted on this machine to OutLayer's keystore, locked to the contract and the
-proxy build; the key is read from env and never printed)
+proxy build; the key is read from env and never printed, and the request for the keystore's public key
+carries only the env name, `{"KL_API_KEY":""}`, see Q-011)
 
 ```sh
 kl add-key --key-env MOCK_API_KEY --base-url https://<mock host> --provider OpenAiCompatible --label demo
