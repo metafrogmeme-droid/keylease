@@ -1,7 +1,8 @@
 /**
  * `lease({ contract, leaseId })` → `l.call(endpoint, body)`. The holder of a lease makes API calls through
  * the KeyLease contract and OutLayer's TEE; it never sees the key. Refusals throw `KeyLeaseError` with the
- * code and the sentence from docs/WORDING.md.
+ * code and the sentence from docs/WORDING.md. The holder can also hand on part of the lease
+ * (`l.subLease`, E-020) and move it to another account (`l.transfer`, the Key Pass, E-019).
  */
 import { nearTransport } from "./near.ts";
 import { TxFailed, type Transport } from "./transport.ts";
@@ -10,6 +11,11 @@ import { PROXY_ERRORS, REFUSALS } from "./wording.ts";
 /** Attached to each call: OutLayer's compute deposit plus the receipt; unused compute is refunded. */
 export const CALL_DEPOSIT = 25_000_000_000_000_000_000_000n; // 0.025 NEAR
 const CALL_TGAS = 300;
+/** Attached to `create_sub_lease` for the new lease's storage; the contract refunds what it does not use. */
+export const SUB_LEASE_DEPOSIT = 50_000_000_000_000_000_000_000n; // 0.05 NEAR
+const SMALL_TGAS = 30;
+/** Sub-leases go at most this many levels below a key owner's lease (contract `MAX_DEPTH`). */
+export const MAX_SUB_LEASE_DEPTH = 3;
 
 export interface LeaseOptions {
   /** The KeyLease contract, a `.testnet` account. */
@@ -23,6 +29,8 @@ export interface LeaseOptions {
   readonly rpc?: string;
   /** Instead of account/privateKey/rpc: a custom signer (tests, wallets). */
   readonly transport?: Transport;
+  /** Clock in Unix ms, for the expiry checks (tests). Default `Date.now`. */
+  readonly now?: () => number;
 }
 
 export interface CallOptions {
@@ -67,14 +75,60 @@ export class KeyLeaseError extends Error {
   }
 }
 
+/** The contract's `get_lease` view. */
 export interface LeaseStatus {
   readonly lease_id: string;
+  readonly key_id: string;
+  /** The key owner. */
+  readonly owner: string;
+  /** The holder: the account that may call, sub-lease and transfer it. */
   readonly grantee: string;
+  readonly calls_total: number;
   readonly calls_used: number;
   readonly calls_left: number;
+  /** Unix nanoseconds, as a string. */
   readonly expires_at: string;
   readonly endpoints: string[];
   readonly status: "active" | "revoked" | "expired" | "used_up";
+  readonly created_at: string;
+  /** The lease this one was handed on from; null for a key owner's lease. */
+  readonly parent: string | null;
+  /** 0 for a key owner's lease, 1-3 for sub-leases. */
+  readonly depth: number;
+  /** Who created it: the key owner, or the holder of the parent lease. */
+  readonly issuer: string;
+}
+
+export interface SubLeaseOptions {
+  /** Who gets the sub-lease; a `.testnet` account. */
+  readonly grantee: string;
+  /** Calls it may make: at least 1, at most what the lease above has left. */
+  readonly calls: number;
+  /** When it ends: a Date or Unix ms, no later than this lease. Default: this lease's expiry. */
+  readonly expiresAt?: Date | number;
+  /** A subset of this lease's endpoints. Default: all of them. */
+  readonly endpoints?: readonly string[];
+  /** Storage deposit, refunded where unused. Default 0.05 NEAR. */
+  readonly deposit?: bigint;
+}
+
+export interface TxReceipt {
+  readonly tx: string;
+  readonly url: string;
+}
+
+export interface SubLease {
+  readonly leaseId: string;
+  /** The new lease, on the same contract. Its holder is the grantee: sign as them to call it. */
+  readonly lease: Lease;
+  readonly receipt: TxReceipt;
+}
+
+/** The lease as a NEP-171 token (`nft_token`): `owner_id` is the holder. */
+export interface KeyPass {
+  readonly token_id: string;
+  readonly owner_id: string;
+  readonly metadata: Readonly<Record<string, unknown>>;
 }
 
 export interface Lease {
@@ -84,6 +138,21 @@ export interface Lease {
   /** Would a call on `endpoint` pass right now? Free (a view). */
   check(endpoint: string): Promise<{ ok: boolean; reason: string | null; hint: string | null }>;
   status(): Promise<LeaseStatus | null>;
+  /**
+   * Hand on part of this lease (you must hold it). Limits only shrink: no more calls than are left, no
+   * later expiry, a subset of the endpoints, at most 3 levels deep. Revoking this lease also refuses every
+   * sub-lease below it. Checked here first (free), then by the contract.
+   */
+  subLease(o: SubLeaseOptions): Promise<SubLease>;
+  /** The sub-leases handed on from this lease (one level). Free (a view). */
+  subLeases(): Promise<LeaseStatus[]>;
+  /**
+   * Move this lease to `receiverId` (NEP-171 `nft_transfer`, 1 yoctoNEAR). Only the holder can, and only
+   * when the key owner made it transferable. Afterwards this signer is refused `not_lease_holder`.
+   */
+  transfer(receiverId: string, opts?: { readonly memo?: string }): Promise<TxReceipt>;
+  /** The lease's Key Pass token, or null. Free (a view). */
+  keyPass(): Promise<KeyPass | null>;
 }
 
 export const explorer = (tx: string) => `https://testnet.nearblocks.io/txns/${tx}`;
@@ -111,6 +180,43 @@ export function refusalIn(text: string): { code: string; hint: string } | null {
   const m = /panicked: ([a-z_]+): ([^"\\]+)/u.exec(text);
   return m?.[1] ? { code: m[1], hint: (m[2] ?? "").trim() } : null;
 }
+
+/** The contract's plain panic sentence (`require!`) from a failure text. */
+export function panicIn(text: string): string | null {
+  const m = /panicked: ([^"\\]+)/u.exec(text);
+  return m?.[1] ? m[1].trim() : null;
+}
+
+/** A failed transaction as a KeyLeaseError: the refusal code if there is one, else `fallback` + the sentence. */
+function failed(e: TxFailed, leaseId: string, fallback: string): KeyLeaseError {
+  const receipt = { leaseId, call: null, tx: e.hash, url: explorer(e.hash) };
+  const r = refusalIn(e.text);
+  if (r) return new KeyLeaseError(r.code, r.hint, receipt);
+  return new KeyLeaseError(fallback, panicIn(e.text) ?? e.text.slice(0, 300), receipt);
+}
+
+const STATUS_CODE: Readonly<Record<string, string>> = {
+  revoked: "lease_revoked",
+  expired: "lease_expired",
+  used_up: "quota_used",
+};
+
+/** Refuse as the contract would when `me` cannot act on this lease (free: from the view, no transaction). */
+function mustHold(l: LeaseStatus | null, me: string): LeaseStatus {
+  const refuse = (code: string) => new KeyLeaseError(code, REFUSALS[code] ?? "", null);
+  if (l === null) throw refuse("lease_not_found");
+  if (l.grantee !== me) throw refuse("not_lease_holder");
+  const code = STATUS_CODE[l.status];
+  if (code) throw refuse(code);
+  return l;
+}
+
+function testnetAccount(id: string, what: string): void {
+  if (!/^([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*\.testnet$/u.test(id))
+    throw new Error(`KeyLease SDK: ${what} must be a .testnet account (testnet only)`);
+}
+
+const msToNs = (ms: number) => (BigInt(Math.trunc(ms)) * 1_000_000n).toString();
 
 function decodeBody(body: string, encoding: unknown): unknown {
   if (encoding !== "utf8") return body;
@@ -160,12 +266,7 @@ export function lease(o: LeaseOptions): Lease {
       try {
         sent = await (await t()).call(o.contract, "use_lease", args, opts.deposit ?? CALL_DEPOSIT, CALL_TGAS);
       } catch (e) {
-        if (e instanceof TxFailed) {
-          const r = refusalIn(e.text);
-          const receipt = { leaseId: o.leaseId, call: null, tx: e.hash, url: explorer(e.hash) };
-          if (r) throw new KeyLeaseError(r.code, r.hint, receipt);
-          throw new KeyLeaseError("call_failed", e.text.slice(0, 300), receipt);
-        }
+        if (e instanceof TxFailed) throw failed(e, o.leaseId, "call_failed");
         throw e;
       }
       const receipt: Receipt = {
@@ -221,6 +322,86 @@ export function lease(o: LeaseOptions): Lease {
 
     async status() {
       return (await t()).view<LeaseStatus | null>(o.contract, "get_lease", { lease_id: o.leaseId });
+    },
+
+    async subLease(s) {
+      testnetAccount(s.grantee, "the grantee");
+      if (!Number.isInteger(s.calls) || s.calls < 1)
+        throw new Error("KeyLease SDK: calls must be a whole number, at least 1");
+      if (s.endpoints?.length === 0) throw new Error("KeyLease SDK: a sub-lease needs at least one endpoint");
+      const tr = await t();
+      const p = mustHold(
+        await tr.view<LeaseStatus | null>(o.contract, "get_lease", { lease_id: o.leaseId }),
+        tr.account,
+      );
+      if (p.depth >= MAX_SUB_LEASE_DEPTH)
+        throw new Error(`KeyLease SDK: sub-leases go at most ${String(MAX_SUB_LEASE_DEPTH)} levels deep`);
+      if (s.calls > p.calls_left)
+        throw new Error(
+          `KeyLease SDK: the lease above has ${String(p.calls_left)} calls left; a sub-lease cannot have more`,
+        );
+      let expires = p.expires_at;
+      if (s.expiresAt !== undefined) {
+        const ms = s.expiresAt instanceof Date ? s.expiresAt.getTime() : s.expiresAt;
+        if (!Number.isFinite(ms) || ms <= (o.now ?? Date.now)())
+          throw new Error("KeyLease SDK: expiresAt must be in the future");
+        expires = msToNs(ms);
+        if (BigInt(expires) > BigInt(p.expires_at))
+          throw new Error("KeyLease SDK: a sub-lease cannot outlive the lease above it");
+      }
+      const endpoints = [...(s.endpoints ?? p.endpoints)];
+      if (!endpoints.every((e) => p.endpoints.includes(e)))
+        throw new Error("KeyLease SDK: a sub-lease can only use endpoints of the lease above it");
+      const args = { parent: o.leaseId, grantee: s.grantee, calls: s.calls, expires_at: expires, endpoints };
+      let sent;
+      try {
+        sent = await tr.call(
+          o.contract,
+          "create_sub_lease",
+          args,
+          s.deposit ?? SUB_LEASE_DEPOSIT,
+          SMALL_TGAS,
+        );
+      } catch (e) {
+        if (e instanceof TxFailed) throw failed(e, o.leaseId, "sub_lease_refused");
+        throw e;
+      }
+      const id = String(sent.value);
+      return {
+        leaseId: id,
+        lease: lease({ ...o, leaseId: id, transport: tr }),
+        receipt: { tx: sent.hash, url: explorer(sent.hash) },
+      };
+    },
+
+    async subLeases() {
+      return (await t()).view<LeaseStatus[]>(o.contract, "list_sub_leases", { lease_id: o.leaseId });
+    },
+
+    async transfer(receiverId, opts = {}) {
+      testnetAccount(receiverId, "the receiver");
+      const tr = await t();
+      mustHold(
+        await tr.view<LeaseStatus | null>(o.contract, "get_lease", { lease_id: o.leaseId }),
+        tr.account,
+      );
+      if (receiverId === tr.account) throw new Error("KeyLease SDK: this account already holds the lease");
+      const args = {
+        receiver_id: receiverId,
+        token_id: o.leaseId,
+        ...(opts.memo === undefined ? {} : { memo: opts.memo }),
+      };
+      try {
+        const sent = await tr.call(o.contract, "nft_transfer", args, 1n, SMALL_TGAS);
+        return { tx: sent.hash, url: explorer(sent.hash) };
+      } catch (e) {
+        if (e instanceof TxFailed) throw failed(e, o.leaseId, "transfer_refused");
+        throw e;
+      }
+    },
+
+    async keyPass() {
+      return (await t()).view<KeyPass | null>(o.contract, "nft_token", { token_id: o.leaseId });
     },
   };
 }
