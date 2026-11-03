@@ -154,3 +154,20 @@ from crates.io stays as the fallback.
   initialise a fresh deploy first (T21). A sandbox test shows a stranger's `new` failing.
 - The proxy goes to FastFS by default; `--proxy-url` takes a self-hosted copy, checked like OutLayer's worker
   fetches it before anything goes on chain.
+
+### E-016 (PR 7b) Wallets without AppKit or modal-ui
+
+- NEAR wallets (MyNearWallet, Meteor, HOT, Intear) and WalletConnect come from wallet-selector 10.1.4.
+  MetaMask uses `@near-wallet-selector/ethereum-wallets` with wagmi's injected connector on NEAR testnet
+  (chain 398). Without an AppKit modal that path needs no Reown project id and no third-party script, so
+  Reown AppKit is left out; it can come back if the EVM-over-WalletConnect path is wanted.
+- WalletConnect is offered only when `NEXT_PUBLIC_REOWN_PROJECT_ID` is set; otherwise the picker shows it
+  disabled with "not configured", and its hosts stay out of the CSP.
+- The app renders its own picker instead of `@near-wallet-selector/modal-ui`, which bundles React 18 next to
+  the app's React 19 and calls an indexer the app does not need. The picker is a plain button list
+  (keyboard and screen reader tested).
+- wallet-selector gets an explicit network object, so it talks to `rpc.testnet.near.org` only.
+- Meteor's SDK needs `near-api-js` 6 as a peer; the web app pins 6.5.1 (the CLI keeps 7).
+- Wallet code loads after first paint (dynamic import), so the first screen does not wait for it.
+- **Decided by Patrick (3 Nov):** MetaMask through the injected connector only; AppKit stays out. A Reown
+  project id exists (`NEXT_PUBLIC_REOWN_PROJECT_ID`, env only) for a later, optional WalletConnect PR.

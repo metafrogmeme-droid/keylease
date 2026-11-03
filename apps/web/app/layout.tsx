@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { TestnetBanner } from "../components/TestnetBanner.tsx";
+import { WalletProvider } from "../components/WalletProvider.tsx";
 import { config } from "../lib/config.ts";
 import "./globals.css";
 
@@ -15,7 +16,9 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
     <html lang="en">
       <body>
         <TestnetBanner contractId={config.contractId} />
-        <main>{children}</main>
+        <WalletProvider>
+          <main>{children}</main>
+        </WalletProvider>
       </body>
     </html>
   );
