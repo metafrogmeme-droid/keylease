@@ -25,3 +25,8 @@ spike/artifacts/
 # misc
 .DS_Store
 *.log
+apps/web/next-env.d.ts
+apps/web/out/
+apps/web/.next/
+apps/web/test-results/
+apps/web/playwright-report/

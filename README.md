@@ -55,6 +55,10 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 [Open questions](docs/OPEN_QUESTIONS.md) · [Proposals](docs/PROPOSALS.md) · [Wording](docs/WORDING.md) ·
 [Verify](docs/VERIFY.md)
 
+Testnet run hosting: the demo API and the proxy wasm need a public https host. The runbook uses a Cloudflare
+quick tunnel, which needs outbound port 7844 (not only HTTPS through a proxy); docs/VERIFY.md step 2 has the
+check and a variant with the tunnel on a second machine.
+
 ## Disclosure
 
 > Disclosure: the same author also entered **Claw Guard: Signing Gate for AI Agents**
