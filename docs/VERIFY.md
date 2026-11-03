@@ -333,6 +333,13 @@ this account is revoked…`; every lease row says `revoked`, and any copied near
     (1 yoctoNEAR): `✓ Key Pass <n> moved to <account>.`, the Holder line changes, and the box is gone. The
     second account's near CLI call now fails with `not_lease_holder`. A lease shared without the box ticked
     says `this Key Pass is not transferable: the key owner did not allow transfers for this lease.`
+11. Sub-lease tree (same contract): as the holder of a lease, hand on two slices with the SDK
+    (`lease.subLease()`, packages/sdk/README.md) and one more from one of those. The lease page shows
+    "Sub-leases" nested: each line names the holder, its status, calls and expiry, and links its own page
+    (which says "A sub-lease, handed on from lease <n>"). As the key owner, Revoke on the middle one, confirm one
+    transaction: `✓ Revoked lease <n> and every sub-lease below it.`, and the one below it reads
+    `refused: a lease above was revoked`; its call fails with `parent_revoked`. The other branch stays
+    `active`.
 
 Time to first lease (brief §4) is measured in CI by `apps/web/e2e/timing.spec.ts`. It drives connect →
 paste key → preset → share against a build with a test-only wallet (`pnpm build:e2e`, never deployed:

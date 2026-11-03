@@ -253,3 +253,14 @@ button.danger {
   border-color: var(--bad);
   color: #ffffff;
 }
+
+.tree,
+.tree ul {
+  list-style: none;
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--line, #888);
+}
+
+.tree li {
+  margin: 0.35rem 0;
+}
