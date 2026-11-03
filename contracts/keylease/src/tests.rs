@@ -22,6 +22,7 @@ pub(crate) const PROXY_HASH: &str = "95385bd10e778f8f1488a266abaa79c455347f6404f
 
 pub(crate) fn fresh() -> KeyLease {
     KeyLease::new(
+        acct("admin.testnet"),
         acct("outlayer.testnet"),
         format!("https://test.fastfs.io/kl.testnet/outlayer.testnet/{PROXY_HASH}.wasm"),
         PROXY_HASH.into(),
