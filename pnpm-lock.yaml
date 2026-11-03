@@ -32,6 +32,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@keylease/mock-api':
+        specifier: workspace:*
+        version: link:../../mock-api
       '@keylease/outlayer':
         specifier: workspace:*
         version: link:../../packages/outlayer

@@ -96,6 +96,23 @@ Expect `{"object":"list","data":[{"id":"keylease-mock-1",…}]}`. In the steps b
 changes on every restart; if it does, seal the key again (step 4) with the new `--base-url` (the proxy URL
 is on GitHub and does not change).
 
+**2c. Demo API on Vercel** (once the web app is deployed, see "Hosted on Vercel"; replaces the laptop
+tunnel). The same mock runs as an edge function at `https://<app>/mock/*`: canned answers only, marked
+with an `x-keylease-demo` header, and the relay's limits (2 KB bodies, 20 requests per minute per IP,
+browsers from other sites refused). The low-value demo key goes into Vercel's env, typed at the prompt:
+
+```sh
+npx vercel@latest env add MOCK_API_KEY production --cwd apps/web    # paste the demo key at the prompt
+npx vercel@latest deploy --prod --cwd apps/web
+curl -s -H "authorization: Bearer $MOCK_API_KEY" https://<app>/mock/v1/models
+curl -sI https://<app>/mock/v1/models | grep -i x-keylease-demo
+```
+
+Expect `{"object":"list","data":[{"id":"keylease-mock-1",…}]}` and
+`x-keylease-demo: mock API: canned answers, low-value demo key, no real provider`. In the steps below,
+`<mock host>` is then `<app>/mock`, a host that does not change on restarts. The 20-per-minute limit counts
+per calling IP, and OutLayer's workers call from a few IPs, so a busy demo minute can see `429` answers.
+
 **3. Deploy** contract `keylease.<you>.testnet` and the proxy URL from step 2 (the CLI checks the URL the
 way OutLayer's worker fetches it, sha256 included, before anything goes on chain).
 
