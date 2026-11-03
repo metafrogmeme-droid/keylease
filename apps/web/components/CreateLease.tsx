@@ -18,7 +18,15 @@ import { useWallet } from "./WalletProvider.tsx";
 type Choice = (typeof PRESETS)[number]["id"] | "custom";
 
 /** Presets instead of forms; "Custom" opens the full form. Ends in the Share panel. */
-export function CreateLease({ keyId, provider }: { readonly keyId: string; readonly provider: string }) {
+export function CreateLease({
+  keyId,
+  provider,
+  onCreated,
+}: {
+  readonly keyId: string;
+  readonly provider: string;
+  readonly onCreated?: () => void;
+}) {
   const w = useWallet();
   const [choice, setChoice] = useState<Choice>("agent");
   const [grantee, setGrantee] = useState("");
@@ -71,6 +79,7 @@ export function CreateLease({ keyId, provider }: { readonly keyId: string; reado
         });
         return;
       }
+      onCreated?.();
       setState({
         kind: "done",
         info: {

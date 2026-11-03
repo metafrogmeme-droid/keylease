@@ -3,6 +3,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { config } from "../lib/config.ts";
 import { view } from "../lib/near-rpc.ts";
+import { Receipts } from "./Receipts.tsx";
 import { SharePanel } from "./SharePanel.tsx";
 
 export interface LeaseView {
@@ -93,6 +94,8 @@ export function LeaseDetail() {
           }}
         />
       )}
+      <h2>Calls</h2>
+      <Receipts leaseId={lease.lease_id} used={lease.calls_used} />
     </section>
   );
 }

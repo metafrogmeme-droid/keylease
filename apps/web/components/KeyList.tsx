@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { config } from "../lib/config.ts";
+import { revokeAllTx } from "../lib/receipts.ts";
 import { view } from "../lib/near-rpc.ts";
 import { failureText, returnValue, testCallTx, testLeaseTx, verdict, type Verdict } from "../lib/testkey.ts";
 import { CreateLease } from "./CreateLease.tsx";
@@ -16,7 +17,13 @@ export interface KeyRow {
 type Test = { kind: "working"; step: string } | { kind: "done"; verdict: Verdict; tx: string | null };
 
 /** The owner's keys, each with a Test key button. `refresh` changes when a key was added. */
-export function KeyList({ refresh = 0 }: { readonly refresh?: number }) {
+export function KeyList({
+  refresh = 0,
+  onLeaseCreated,
+}: {
+  readonly refresh?: number;
+  readonly onLeaseCreated?: () => void;
+}) {
   const w = useWallet();
   const [keys, setKeys] = useState<KeyRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +78,36 @@ export function KeyList({ refresh = 0 }: { readonly refresh?: number }) {
     [w],
   );
 
+  const revokeAll = useCallback(
+    async (key: KeyRow) => {
+      setTests((all) => ({
+        ...all,
+        [key.key_id]: { kind: "working", step: "Confirm revoking every lease on this key…" },
+      }));
+      try {
+        await w.send([revokeAllTx(config.contractId, key.key_id)]);
+        setTests((all) => ({
+          ...all,
+          [key.key_id]: {
+            kind: "done",
+            tx: null,
+            verdict: {
+              ok: true,
+              text: "Every lease on this key is revoked; their next call is refused (lease_revoked).",
+            },
+          },
+        }));
+        onLeaseCreated?.();
+      } catch (e) {
+        setTests((all) => ({
+          ...all,
+          [key.key_id]: { kind: "done", tx: null, verdict: { ok: false, text: failureText(e) } },
+        }));
+      }
+    },
+    [w, onLeaseCreated],
+  );
+
   if (w.accountId === null) return null;
   return (
     <section aria-labelledby="your-keys" className="card">
@@ -102,6 +139,13 @@ export function KeyList({ refresh = 0 }: { readonly refresh?: number }) {
                   }}
                 >
                   Share
+                </button>{" "}
+                <button
+                  type="button"
+                  aria-label={`Revoke all leases on key ${k.label}`}
+                  onClick={() => void revokeAll(k)}
+                >
+                  Revoke all for this key
                 </button>
                 <p role="status" className={t?.kind === "done" ? (t.verdict.ok ? "ok" : "bad") : "hint"}>
                   {t?.kind === "working" && t.step}
@@ -119,7 +163,13 @@ export function KeyList({ refresh = 0 }: { readonly refresh?: number }) {
                     </>
                   )}
                 </p>
-                {sharing === k.key_id && <CreateLease keyId={k.key_id} provider={k.provider} />}
+                {sharing === k.key_id && (
+                  <CreateLease
+                    keyId={k.key_id}
+                    provider={k.provider}
+                    {...(onLeaseCreated ? { onCreated: onLeaseCreated } : {})}
+                  />
+                )}
               </li>
             );
           })}
