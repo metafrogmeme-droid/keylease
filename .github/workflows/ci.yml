@@ -72,6 +72,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          # v5 auto-caches from package.json `packageManager`; that fails when pnpm install was skipped.
+          package-manager-cache: false
           cache: ${{ steps.changes.outputs.node == 'true' && 'pnpm' || '' }}
       - name: copy-lint
         if: steps.changes.outputs.full == 'true'
