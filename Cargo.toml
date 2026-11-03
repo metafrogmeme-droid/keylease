@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+# spike/ is a throwaway day-1 experiment with its own workspace (docs/OPEN_QUESTIONS.md Q-001/Q-002).
+exclude = ["spike"]
 
 [workspace.package]
 edition = "2021"

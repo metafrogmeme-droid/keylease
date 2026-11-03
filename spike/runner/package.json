@@ -1,0 +1,16 @@
+{
+  "name": "@keylease/spike-runner",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "PR 2 spike runner: seals a canary secret on OutLayer testnet and checks who can open it.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "spike": "node src/run.ts"
+  },
+  "dependencies": {
+    "near-api-js": "^7.4.0"
+  }
+}

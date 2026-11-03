@@ -1,0 +1,25 @@
+# Day-1 spike (PR 2): throwaway, not part of the product workspace or its CI.
+[workspace]
+resolver = "2"
+members = ["hello-proxy", "caller-contract"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
+strip = true
