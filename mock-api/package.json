@@ -1,0 +1,13 @@
+{
+  "name": "@keylease/mock-api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Low-value demo API for KeyLease: OpenAI-shaped chat and models, an echo, and a header mirror that triggers the proxy's tripwire.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "serve": "node src/serve.ts"
+  }
+}

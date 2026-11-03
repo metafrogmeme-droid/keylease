@@ -7,10 +7,10 @@
   "description": "PR 2 spike runner: seals a canary secret on OutLayer testnet and checks who can open it.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
     "spike": "node src/run.ts"
   },
   "dependencies": {
+    "@keylease/outlayer": "workspace:*",
     "near-api-js": "^7.4.0"
   }
 }

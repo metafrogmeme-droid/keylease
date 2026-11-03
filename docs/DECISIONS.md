@@ -127,3 +127,13 @@ Building cargo-near from source took over 10 minutes of CI. `scripts/install-car
 v0.22.0 release binary (about 2 s), checks it against the release `.sha256` file and the sha256 pinned in CI,
 and keeps it in `.tools/` (cached by the script's hash, so a lockfile change does not drop it). Building
 from crates.io stays as the fallback.
+
+### E-014 (PR 6a) Shared OutLayer helpers and the mock API
+
+- The spike's OutLayer modules (keystore envelope, lock, FastFS / self-hosted publishing, outcome parsing)
+  move with their tests to `packages/outlayer`, used by the spike now and by the CLI, SDK and web app
+  next. The spike keeps only its runner.
+- `mock-api` is a plain Web `Request -> Response` handler (Vercel, Cloudflare Worker or Node), so D3 does
+  not change its code. It answers with canned text and echoes only, behind a bearer key from env.
+  `GET /debug/headers` mirrors request headers on purpose: a lease that includes it shows the proxy
+  withholding an answer that carries the key, and the on-chain `tripwire` receipt (T1).
