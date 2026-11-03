@@ -5,6 +5,7 @@
 set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 gl="${GITLEAKS:-$(command -v gitleaks || echo "$root/.tools/bin/gitleaks")}"
+gl="$(cd "$root" && realpath "$gl")" # the test cds into a scratch repo
 cfg="$root/.gitleaks.toml"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT

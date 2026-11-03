@@ -15,8 +15,8 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
-  # Set after the first CI run printed it; see scripts/install-gitleaks.sh.
-  GITLEAKS_LINUX_X64_SHA256: ""
+  # gitleaks_8.30.1_linux_x64.tar.gz; also checked against the release checksums file.
+  GITLEAKS_LINUX_X64_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 
 jobs:
   # One job on purpose: private-repo minutes are billed per job, rounded up (docs/DECISIONS.md E-001).
@@ -45,7 +45,7 @@ jobs:
           echo "node=$node" >>"$GITHUB_OUTPUT"; echo "rust=$rust" >>"$GITHUB_OUTPUT"
 
       # --- secrets: every PR, full history, verbose ---
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .tools
           key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-gitleaks.sh') }}
