@@ -2,17 +2,24 @@
 export {
   CALL_DEPOSIT,
   KeyLeaseError,
+  MAX_SUB_LEASE_DEPTH,
+  SUB_LEASE_DEPOSIT,
   callNumber,
   explorer,
   lease,
   leaseFromEnv,
+  panicIn,
   refusalIn,
   type CallOptions,
   type CallResult,
+  type KeyPass,
   type Lease,
   type LeaseOptions,
   type LeaseStatus,
   type Receipt,
+  type SubLease,
+  type SubLeaseOptions,
+  type TxReceipt,
 } from "./lease.ts";
 export { TESTNET_RPC, nearTransport, type NearOptions } from "./near.ts";
 export { TxFailed, type Sent, type Transport } from "./transport.ts";
