@@ -279,3 +279,28 @@ export async function revoke(s: Settings, o: Opts): Promise<number> {
   say("tx", txLink(out.hash));
   return 0;
 }
+
+/**
+ * Point the contract at a new URL for the same proxy build (admin only), e.g. after a tunnel restart.
+ * The URL must serve exactly the local build, checked like OutLayer's worker fetches it; the hash in the
+ * keys' locks does not change, so no key needs re-sealing.
+ */
+export async function setProxy(s: Settings, o: Opts): Promise<number> {
+  const c = await connect(s);
+  const id = contractOf(s);
+  const url = str(o, "proxy-url");
+  const proxyHash = sha256(readFileSync(str(o, "proxy", "target/proxy/keylease-proxy.wasm")));
+  const cfg = await view<Config>(c.provider, id, "get_config");
+  if (cfg.proxy_hash !== proxyHash) {
+    throw new Error(
+      `local proxy build ${proxyHash.slice(0, 12)}… differs from the deployed ${cfg.proxy_hash.slice(0, 12)}…; owners would have to re-seal`,
+    );
+  }
+  await checkHosted(url, proxyHash);
+  const out = await callAndWait(c, id, "set_proxy", { proxy_url: url, proxy_hash: proxyHash }, 0n, 30);
+  if (!out.ok) throw new Error(`set_proxy failed: ${short(out.text)}`);
+  say("proxy", `sha256 ${proxyHash}`);
+  say("proxy url", url);
+  say("tx", txLink(out.hash));
+  return 0;
+}
