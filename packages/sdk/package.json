@@ -1,0 +1,18 @@
+{
+  "name": "@keylease/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "KeyLease client: make leased API calls on NEAR testnet with a lease id, never a key.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "near-api-js": "^7.4.0"
+  }
+}

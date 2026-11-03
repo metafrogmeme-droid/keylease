@@ -32,3 +32,4 @@ apps/web/.next/
 apps/web/test-results/
 apps/web/playwright-report/
 apps/web/.vercel/
+apps/web/test/.tmp/

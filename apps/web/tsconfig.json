@@ -10,5 +10,5 @@
     "paths": { "@keylease/test-wallet": ["./lib/test-wallet.ts"] }
   },
   "include": ["app", "components", "functions", "lib", "scripts", "test", "e2e", "*.ts"],
-  "exclude": ["node_modules", ".next", "out"]
+  "exclude": ["node_modules", ".next", "out", "test/.tmp"]
 }

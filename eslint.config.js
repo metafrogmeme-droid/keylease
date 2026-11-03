@@ -11,6 +11,7 @@ export default tseslint.config(
       "**/.next/**",
       "**/out/**",
       "**/.vercel/**",
+      "**/test/.tmp/**",
     ],
   },
   js.configs.recommended,

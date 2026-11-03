@@ -81,6 +81,9 @@ importers:
         specifier: 2.57.16
         version: 2.57.16(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
     devDependencies:
+      '@keylease/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@next/env':
         specifier: 16.4.4
         version: 16.4.4
@@ -125,6 +128,12 @@ importers:
       '@noble/hashes':
         specifier: 2.4.0
         version: 2.4.0
+
+  packages/sdk:
+    dependencies:
+      near-api-js:
+        specifier: ^7.4.0
+        version: 7.4.0
 
   spike/runner:
     dependencies:
