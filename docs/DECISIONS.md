@@ -104,3 +104,19 @@ CI (rustc 1.99.1) and the build session (1.97.0) built different proxy bytes for
 `rust-toolchain.toml` pins 1.99.1 (closes E-006) and `scripts/build-proxy.sh` remaps `$CARGO_HOME` and the
 repo path, so the proxy builds the same sha256 on any x86_64 Linux host. Bumping the toolchain changes the
 proxy hash, so it is a deliberate change that owners must re-lock to.
+
+### E-012 (PR 5) Call path
+
+- **Who pays.** The caller attaches ≥ 0.025 NEAR. 0.005 NEAR stays for the receipt's storage; the rest goes
+  to OutLayer with `payer_account_id = caller`, so OutLayer refunds unused compute straight to the caller.
+- **Call before run, never given back.** The call is used before `request_execution`; a failed or timed-out
+  run still counts. Giving calls back on failure would let a caller who can slow the API down make
+  unlimited calls.
+- **Receipts are hashes and an outcome.** `ok | refused | tripwire | error | failed`, the proxy's code, the
+  HTTP status, `sha256` of the exact input and of the JSON returned. Never the body or the key; the body
+  goes back only to the caller as the transaction result. Tripwire receipts also emit a `tripwire` event.
+- **Proxy pointer.** The contract holds one proxy URL + hash (`set_proxy`, admin only). A new build does not
+  open old keys: their owners re-point their lock (T2).
+- **Mock OutLayer.** `contracts/mock-outlayer` answers like OutLayer + proxy and records every request;
+  `tests/sandbox` runs the whole flow in a near-workspaces sandbox. The sandbox needs a 65535 open-file
+  limit, so it runs in CI (the build session is capped at 20000).

@@ -3,14 +3,14 @@ use crate::*;
 use near_sdk::test_utils::{get_logs, VMContextBuilder};
 use near_sdk::{testing_env, AccountId, NearToken};
 
-const SEC: u64 = 1_000_000_000;
-const T0: u64 = 1_700_000_000 * SEC;
+pub(crate) const SEC: u64 = 1_000_000_000;
+pub(crate) const T0: u64 = 1_700_000_000 * SEC;
 
-fn acct(s: &str) -> AccountId {
+pub(crate) fn acct(s: &str) -> AccountId {
     s.parse().unwrap_or_else(|_| unreachable!())
 }
 
-fn ctx(caller: &str, now: u64, deposit_millinear: u128) {
+pub(crate) fn ctx(caller: &str, now: u64, deposit_millinear: u128) {
     testing_env!(VMContextBuilder::new()
         .predecessor_account_id(acct(caller))
         .block_timestamp(now)
@@ -18,16 +18,33 @@ fn ctx(caller: &str, now: u64, deposit_millinear: u128) {
         .build());
 }
 
-struct Setup {
-    c: KeyLease,
-    key: U64,
-    lease: U64,
+pub(crate) const PROXY_HASH: &str = "95385bd10e778f8f1488a266abaa79c455347f6404f53140b3bde8755a4cd970";
+
+pub(crate) fn fresh() -> KeyLease {
+    KeyLease::new(
+        acct("outlayer.testnet"),
+        format!("https://test.fastfs.io/kl.testnet/outlayer.testnet/{PROXY_HASH}.wasm"),
+        PROXY_HASH.into(),
+    )
+}
+
+/// One leased call as `bob.testnet` with the minimum deposit; returns calls used afterwards.
+pub(crate) fn call(c: &mut KeyLease, lease: U64) -> u32 {
+    ctx("bob.testnet", T0 + SEC, 25);
+    let _ = c.use_lease(lease, "/v1/chat".into(), None, Some("{}".into()));
+    c.get_lease(lease).map_or(0, |l| l.calls_used)
+}
+
+pub(crate) struct Setup {
+    pub(crate) c: KeyLease,
+    pub(crate) key: U64,
+    pub(crate) lease: U64,
 }
 
 /// alice registers a key and leases 2 calls on /v1/chat to bob for 1 hour.
-fn setup() -> Setup {
+pub(crate) fn setup() -> Setup {
     ctx("alice.testnet", T0, 1000);
-    let mut c = KeyLease::new();
+    let mut c = fresh();
     let key = c.add_key(
         Provider::NearAiCloud,
         "https://cloud-api.near.ai".into(),
@@ -44,15 +61,14 @@ fn setup() -> Setup {
     Setup { c, key, lease }
 }
 
-fn refusal(c: &KeyLease, lease: U64, caller: &str, endpoint: &str) -> Option<String> {
+pub(crate) fn refusal(c: &KeyLease, lease: U64, caller: &str, endpoint: &str) -> Option<String> {
     c.check_call(lease, acct(caller), endpoint.into()).reason
 }
 
 #[test]
 fn grantee_call_passes_and_counts() {
     let mut s = setup();
-    ctx("bob.testnet", T0 + SEC, 0);
-    assert_eq!(s.c.use_lease(s.lease, "/v1/chat".into()), 1);
+    assert_eq!(call(&mut s.c, s.lease), 1);
     let v = s.c.get_lease(s.lease).unwrap_or_else(|| unreachable!());
     assert_eq!(
         (v.calls_used, v.calls_left, v.status),
@@ -108,9 +124,8 @@ fn refusal_endpoint_not_in_lease() {
 #[test]
 fn refusal_quota_used() {
     let mut s = setup();
-    ctx("bob.testnet", T0 + SEC, 0);
-    s.c.use_lease(s.lease, "/v1/chat".into());
-    s.c.use_lease(s.lease, "/v1/chat".into());
+    call(&mut s.c, s.lease);
+    call(&mut s.c, s.lease);
     assert_eq!(
         refusal(&s.c, s.lease, "bob.testnet", "/v1/chat").as_deref(),
         Some("quota_used")
@@ -125,9 +140,8 @@ fn refusal_quota_used() {
 #[should_panic(expected = "quota_used: All calls in this lease are used")]
 fn use_lease_panics_with_code_and_hint() {
     let mut s = setup();
-    ctx("bob.testnet", T0 + SEC, 0);
     for _ in 0..3 {
-        s.c.use_lease(s.lease, "/v1/chat".into());
+        call(&mut s.c, s.lease);
     }
 }
 
@@ -312,7 +326,7 @@ fn lease_endpoints_are_validated() {
 #[should_panic(expected = "base_url must start with https://")]
 fn key_needs_https() {
     ctx("alice.testnet", T0, 1000);
-    let mut c = KeyLease::new();
+    let mut c = fresh();
     c.add_key(
         Provider::Custom,
         "http://api.example".into(),
@@ -325,7 +339,7 @@ fn key_needs_https() {
 #[should_panic(expected = "for storage")]
 fn storage_must_be_paid() {
     ctx("alice.testnet", T0, 0);
-    let mut c = KeyLease::new();
+    let mut c = fresh();
     c.add_key(
         Provider::Custom,
         "https://api.example".into(),

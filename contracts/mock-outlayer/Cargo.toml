@@ -1,0 +1,18 @@
+[package]
+name = "mock-outlayer"
+version = "0.1.0"
+description = "Test double for outlayer.testnet: answers request_execution like OutLayer + the KeyLease proxy would, and records what it was sent. Sandbox tests only."
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5.30"
+
+[lints]
+workspace = true

@@ -111,7 +111,13 @@ jobs:
       - name: clippy
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: cargo test
+      - name: cargo-near (cached in ~/.cargo/bin)
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
+        run: command -v cargo-near >/dev/null || cargo install cargo-near --version 0.22.0 --locked --no-default-features
+      - name: build contracts (wasm for the sandbox tests)
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
+        run: scripts/build-contracts.sh
+      - name: cargo test (unit + near-workspaces sandbox)
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: cargo test --workspace --locked
       - name: proxy wasm builds reproducibly (two clean builds, same sha256)
