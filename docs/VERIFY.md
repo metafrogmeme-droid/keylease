@@ -416,6 +416,13 @@ _Run 2026-11-03_ (Patrick) on `https://keylease.vercel.app`, deploy `dpl_4DAL4Aa
 Vercel and is not read back. The two leased calls above reached `/mock` with that key from inside the
 proxy and got 200.
 
+_Run 2026-11-03_ (Patrick), deploy `dpl_DCN19bQDUredBtmdMAwcGKRTpnfC` of `main` at `7989b93` (PR 10d, the fixes
+PR #32, PR 10e), about 21:31 CET, deployed from the repo root as above (main's CI run `41712122030` green):
+`GET /` 200 with the same security headers; `HEAD` and `GET /mock/v1/models` without the key 401 with
+`x-keylease-demo`; `/mock` from a foreign origin 403; the relay 200 (empty secret) / 400 (non-empty) / 403
+(foreign origin); the Key Pass transfer strings of PR 10e are in the live bundle; `kl call --endpoint`
+parses its endpoint again (#32). The transfer itself needs a contract with Key Pass (step 10).
+
 Then run "Web app, by hand" steps 1-9 on `https://<app>` instead of the local server.
 
 ## Attestation (PR 12, planned)
