@@ -1,13 +1,69 @@
 # Open questions
 
-Questions for Patrick and facts still to confirm. Each has an owner and the PR it blocks. Answered
-questions keep their answer here.
+Questions for Patrick and facts still to confirm. Each has the PR it blocks. Answered questions keep their
+answer here.
 
-| ID    | Question                                                                                                                                                                                      | Blocks  | Status           |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------- |
-| Q-001 | Can a NEAR testnet contract call `outlayer.testnet` `request_execution` and get the result back by yield/resume? (spike)                                                                      | PR 3, 5 | open (PR 2)      |
-| Q-002 | Does a secret with condition `Predecessor[contract] AND WasmHash[proxy]` open only for that pair, when the secret is owned by the key owner and the run is requested by the contract? (spike) | PR 3, 5 | open (PR 2)      |
-| Q-003 | If Q-002 is no: accept fallback A (`AllowAll AND WasmHash[proxy]` + contract view `check_call(exec_id)`)?                                                                                     | PR 3    | waiting on Q-002 |
-| Q-004 | Re-read https://nearhackathon.com/HACKATHON.md: the build environment could not reach it on 3 Nov (network policy). Patrick to confirm no rule change since the brief, or allow the host.     | PR 15   | open             |
-| Q-005 | OutLayer payment key format, so gitleaks gets a dedicated rule                                                                                                                                | PR 14   | open             |
-| Q-006 | Rust toolchain range for near-sdk 5.x contract wasm on testnet today                                                                                                                          | PR 3    | open (PR 2)      |
+| ID    | Question                                                                                                                                                                                                                                                                                                                                                                 | Blocks  | Status                                                          |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------------- |
+| Q-001 | Can a NEAR testnet contract call `outlayer.testnet` `request_execution` and get the result back by yield/resume?                                                                                                                                                                                                                                                         | PR 3, 5 | source says yes (below); **testnet run pending** (Q-007, Q-008) |
+| Q-002 | Does a secret locked with `Predecessor[contract] AND WasmHash[proxy]` open only for that pair, when the key owner owns the secret and the contract requests the run?                                                                                                                                                                                                     | PR 3, 5 | source says yes (below); **testnet run pending** (Q-007, Q-008) |
+| Q-003 | If Q-002 is no: accept fallback A (`AllowAll AND WasmHash[proxy]` + contract view `check_call(exec_id)`)?                                                                                                                                                                                                                                                                | PR 3    | likely not needed                                               |
+| Q-004 | Re-read https://nearhackathon.com/HACKATHON.md: the build session cannot reach it (network policy, 3 Nov). Patrick to confirm no rule change since the brief, or allow the host.                                                                                                                                                                                         | PR 15   | open                                                            |
+| Q-005 | OutLayer payment key format for a gitleaks rule. Source: header `X-Payment-Key: owner:nonce:secret`, secret is base64, no stated length.                                                                                                                                                                                                                                 | PR 14   | partly answered                                                 |
+| Q-006 | Rust toolchain range for near-sdk 5.x contract wasm on testnet today                                                                                                                                                                                                                                                                                                     | PR 3    | open                                                            |
+| Q-007 | Allow these hosts for the build session, or run the spike on Patrick's machine: `rpc.testnet.near.org`, `testnet-api.outlayer.ai`, `test.fastfs.io` (and `nearhackathon.com` for Q-004)                                                                                                                                                                                  | PR 2    | **open: Patrick**                                               |
+| Q-008 | A testnet account for the spike, key in env only (`NEAR_ACCOUNT_ID`, `NEAR_PRIVATE_KEY`). Needs about 7.5 NEAR for 3 sub-accounts + 2 secret rows + 6 runs; nearly all is returned when the runner deletes them.                                                                                                                                                         | PR 2    | **open: Patrick**                                               |
+| Q-009 | The lock has no signer leaf, so **our contract is the only gate**: whoever can upgrade `keylease.testnet` can open every sealed key. Lock the contract after deploy (remove full-access keys; an upgrade means a new contract id and owners re-point their lock), or keep it upgradable and say so? Recommend: lock it at code freeze; upgradable until then on testnet. | PR 6    | **open: Patrick**                                               |
+| Q-010 | Output size. OutLayer's docs say about 900 B on chain; its code has a second path for answers of 1 KB or more and a 10 MiB worker cap. The proxy returns API answers of several KB. Spike row S6 measures 8 KB through a contract. If it fails, receipts keep hashes only and the body travels off chain.                                                                | PR 4, 5 | open (S6)                                                       |
+
+## Facts from OutLayer source (commit `aaf60a2`, 21 Oct 2026)
+
+Read from https://github.com/out-layer/outlayer. These are what the code says, not yet seen on testnet.
+
+**Calling from a contract (Q-001).**
+
+- `request_execution(source, resource_limits, input_data, secrets_ref, response_format, payer_account_id, params)` is `#[payable]` and ends in `promise_return` of a yield promise (`contract/src/execution.rs:35-45, 323-329, 365`).
+  - A caller's `.then()` callback receives the guest's output: raw JSON for `response_format: Json`, or `null` on failure or timeout (`execution.rs:441-452, 702, 761`).
+  - OutLayer's own example relay contracts do exactly this (`wasi-examples/test-storage-ark/relay-contract/src/lib.rs:111-134`).
+- `resource_limits: None` means compile only; the run needs explicit limits (`execution.rs:79`).
+- **Deposit:** the attached deposit must be at least `estimate_execution_cost(limits, input_len)` (a view). Unused compute is refunded to the payer, which defaults to the predecessor, i.e. our contract (`execution.rs:245-280, 652-657`).
+- **Gas:** OutLayer reserves 50 TGas of the caller's prepaid gas for its resume callback (`contract/src/lib.rs:27, 48-60`).
+- **Timeout:** a run not resolved in 200 blocks returns `null`. After 10 min, `cancel_stale_execution` can be called, but only by the predecessor, so **KeyLease needs its own method that forwards `cancel_stale_execution`** (`execution.rs:823-878`).
+
+**Who a secret opens for (Q-002).**
+
+- **Which row a run reads:**
+  - A run names the owner's row with `secrets_ref: {profile, account_id: <owner>}`.
+  - The accessor comes from the source: with a `WasmUrl` source it is `WasmHash{hash}` (`worker/src/main.rs:2679-2723`).
+  - So the owner stores under `{"WasmHash":{"hash":<proxy sha256>}}`.
+- **Who is judged:**
+  - Every condition leaf is judged against the transaction **signer**.
+  - `Predecessor{condition}` re-judges its inner condition against the account that **called OutLayer**, i.e. our contract (`keystore-worker/src/types.rs:597-609`).
+  - A request with no predecessor is an error, which refuses.
+- **The build check:**
+  - `WasmHash{hash}` compares the sha256 of the bytes about to run (`keystore-worker/src/types.rs:580-591`, `worker/src/main.rs:2366-2369`).
+  - With a `WasmUrl` source the worker also refuses bytes whose hash differs from the source's (`main.rs:2375-2381`).
+- **The lock is** `{"Logic":{"operator":"And","conditions":[{"Predecessor":{"condition":{"Whitelist":{"accounts":["<contract>"]}}}},{"WasmHash":{"hash":"<sha256>"}}]}}`. Hashes must be lowercase hex (`contract/src/secrets.rs:2448-2486`).
+- OutLayer runs this exact scenario in its own end-to-end test (`tests/secret_predecessor_e2e.sh`, rows P1-P7).
+
+**Storing a secret.**
+
+- **The call:** `store_secrets(accessor, profile, encrypted_secrets_base64, access, vault_id)` is payable for storage, and `vault_id: null` must be passed. The owner is the signer of the store (`secrets.rs:277-296`).
+- **Encryption:** the plaintext is a JSON object of env vars, encrypted in the browser to a key from `POST <api>/secrets/pubkey`. The envelope is `base64(0x01 | X25519 ephemeral pub | 12-byte nonce | ChaCha20-Poly1305)`, keyed with HKDF-SHA256 (no salt, info `outlayer-keystore-v1`) (`keystore-worker/src/crypto.rs`).
+- **Implementation:** the spike's `runner/src/ecies.ts` implements this envelope. A test opens an envelope made by an independent Python implementation.
+- **Changing the lock:** `update_access` changes the lock without re-encrypting, which is how an owner re-points to a new proxy build (`secrets.rs:632-640`).
+
+**Code author's gate (defence in depth).** A wasm can carry an `outlayer.manifest` section with
+`callers.contract: {only: [...]}`. The worker refuses other callers before any secret is decrypted
+(`wasi-examples/CONNECTOR_MANIFEST.md`). It is covered by the wasm hash. See PROPOSALS P-003.
+
+**Attestation.** The per-execution TDX quote's report_data hashes the task, the input and output hashes,
+the caller and `secrets_ref` (`worker/src/tdx_attestation.rs:149-217`). It hashes a cache checksum rather
+than the executed wasm sha256, and it does not include the predecessor. To check in PR 12 against the live
+coordinator.
+
+## What the spike will prove on testnet
+
+`spike/README.md` lists rows S1-S6 (opens for the locked pair; refused for a decoy contract with the same
+code, a direct call by the owner, and the wrong build; any signer works through the contract; an 8 KB
+answer comes back). Results go to `spike/results/` with transaction links, and are summarised here.

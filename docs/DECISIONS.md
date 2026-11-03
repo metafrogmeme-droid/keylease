@@ -55,3 +55,9 @@ The only whole-file exception is the verbatim brief (it quotes the wording it fo
 
 The contract toolchain (near-sdk 5.x and `cargo near` need a specific rustc range for wasm) is pinned in
 PR 3 with `rust-toolchain.toml`, once the spike confirms the versions.
+
+### E-007 (PR 2) Spike lives in `spike/` with its own workspace
+
+Throwaway code for Q-001/Q-002: excluded from the root cargo workspace so product CI stays lean. Its
+TypeScript runner is in the pnpm workspace so its unit tests (envelope, FastFS payload, lock shape) run in
+CI. Nothing in `spike/` is imported by product code; PR 3 starts the real contract.
