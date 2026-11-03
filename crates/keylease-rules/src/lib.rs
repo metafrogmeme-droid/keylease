@@ -1,4 +1,6 @@
-//! Input rules for keys and leases. Pure functions, unit-tested; the contract panics with the message.
+//! Input rules for keys and leases, shared by the contract (which refuses bad input) and the proxy
+//! (which re-checks what it is asked to call). Pure functions, unit-tested.
+#![allow(clippy::missing_errors_doc)] // every rule returns its own human-readable reason as the error
 
 /// Most endpoints one lease may list.
 pub const MAX_ENDPOINTS: usize = 16;

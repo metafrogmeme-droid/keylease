@@ -32,12 +32,15 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 
 ## Layout
 
-| Path                      | What                                                                |
-| ------------------------- | ------------------------------------------------------------------- |
-| `crates/keylease-reasons` | refusal codes and hints shared by contract, proxy and clients       |
-| `tools/repo-lint`         | copy-lint, env-lint, commit-lint (run in CI and the git hooks)      |
-| `scripts/`                | gitleaks install and self-test                                      |
-| `docs/`                   | threat model, decisions, open questions, proposals, wording, verify |
+| Path                      | What                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `contracts/keylease`      | NEAR contract: keys, leases, quotas, expiry, endpoints, revoke                      |
+| `wasm/keylease-proxy`     | proxy run in the OutLayer TEE: opens the key, calls one endpoint, withholds the key |
+| `crates/keylease-reasons` | refusal codes and hints shared by contract, proxy and clients                       |
+| `crates/keylease-rules`   | input rules shared by contract and proxy                                            |
+| `tools/repo-lint`         | copy-lint, env-lint, commit-lint (run in CI and the git hooks)                      |
+| `scripts/`                | gitleaks install and self-test, reproducible proxy build                            |
+| `docs/`                   | threat model, decisions, open questions, proposals, wording, verify                 |
 
 ## Docs
 
