@@ -1,0 +1,17 @@
+[package]
+name = "spike-hello-proxy"
+version = "0.1.0"
+description = "Spike guest: reports whether the sealed secret reached it, without ever printing it."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# Builds different bytes (so a different sha256) for the wrong-build row.
+variant-b = []
+
+[dependencies]
+sha2 = { version = "0.10", default-features = false }
+
+[lints]
+workspace = true

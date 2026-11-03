@@ -7,6 +7,9 @@ out/
 *.tsbuildinfo
 coverage/
 
+# spike build output (results/ is kept: tx links, no secrets)
+spike/artifacts/
+
 # local tools (gitleaks binary)
 .tools/
 
