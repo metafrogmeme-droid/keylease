@@ -24,6 +24,7 @@ Requires Node ≥ 22.18, pnpm 10, Rust stable.
 ```sh
 pnpm install                     # also enables the git hooks in .githooks
 scripts/install-gitleaks.sh      # pinned gitleaks for the pre-commit hook (.tools/bin, git-ignored)
+scripts/install-cargo-near.sh    # pinned cargo-near for the contract builds (.tools/bin)
 pnpm check                       # eslint, prettier, tsc strict, vitest, copy-lint, env-lint
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
 scripts/build-contracts.sh && cargo test # sandbox tests need cargo-near and `ulimit -n 65535`

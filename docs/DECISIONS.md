@@ -120,3 +120,10 @@ proxy hash, so it is a deliberate change that owners must re-lock to.
 - **Mock OutLayer.** `contracts/mock-outlayer` answers like OutLayer + proxy and records every request;
   `tests/sandbox` runs the whole flow in a near-workspaces sandbox. The sandbox needs a 65535 open-file
   limit, so it runs in CI (the build session is capped at 20000).
+
+### E-013 (PR 5b) cargo-near from the release binary
+
+Building cargo-near from source took over 10 minutes of CI. `scripts/install-cargo-near.sh` downloads the
+v0.22.0 release binary (about 2 s), checks it against the release `.sha256` file and the sha256 pinned in CI,
+and keeps it in `.tools/` (cached by the script's hash, so a lockfile change does not drop it). Building
+from crates.io stays as the fallback.

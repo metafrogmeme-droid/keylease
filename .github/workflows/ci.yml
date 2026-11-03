@@ -20,6 +20,8 @@ env:
   CARGO_INCREMENTAL: 0
   # gitleaks_8.30.1_linux_x64.tar.gz; also checked against the release checksums file.
   GITLEAKS_LINUX_X64_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+  # cargo-near-x86_64-unknown-linux-gnu.tar.gz v0.22.0; also checked against the release .sha256 file.
+  CARGO_NEAR_LINUX_X64_SHA256: 9429064e30a427e96523f539cb255f3688d2345e5000d7d4e4873a8247247d1a
 
 jobs:
   # One job on purpose: private-repo minutes are billed per job, rounded up (docs/DECISIONS.md E-001).
@@ -57,7 +59,7 @@ jobs:
         if: steps.changes.outputs.full == 'true'
         with:
           path: .tools
-          key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-gitleaks.sh') }}
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-gitleaks.sh', 'scripts/install-cargo-near.sh') }}
       - name: Install gitleaks (pinned, checksum-verified)
         if: steps.changes.outputs.full == 'true'
         run: scripts/install-gitleaks.sh
@@ -111,9 +113,9 @@ jobs:
       - name: clippy
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: cargo-near (cached in ~/.cargo/bin)
+      - name: cargo-near (prebuilt, checksum-verified, cached in .tools)
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
-        run: command -v cargo-near >/dev/null || cargo install cargo-near --version 0.22.0 --locked --no-default-features
+        run: scripts/install-cargo-near.sh && echo "$PWD/.tools/bin" >>"$GITHUB_PATH"
       - name: build contracts (wasm for the sandbox tests)
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: scripts/build-contracts.sh
