@@ -13,7 +13,11 @@ describe("CSP for the static export (T8)", () => {
   });
 
   it("allows scripts only from this origin and listed hashes, nothing inline-unsafe", () => {
-    const p = policy(["'sha256-x'"]);
+    const p = policy(["'sha256-x'"], {
+      connect: ["'self'", "https://rpc.testnet.near.org", "https://testnet-api.outlayer.ai"],
+      frame: [],
+      img: [],
+    });
     expect(p).toContain("default-src 'none'");
     expect(p).toContain("script-src 'self' 'sha256-x'");
     expect(p).toContain("connect-src 'self' https://rpc.testnet.near.org https://testnet-api.outlayer.ai");

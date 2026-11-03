@@ -1,12 +1,14 @@
 /**
  * Content Security Policy for the static export (T8). A static host cannot be relied on for headers, so
  * the build writes a `<meta http-equiv>` policy into every page: scripts only from this origin plus the
- * sha256 of each inline script Next emits, no third-party scripts, connections only to the testnet RPC and
- * the OutLayer API. `frame-ancestors` cannot be set by a meta tag; the host adds it as a header (D3).
+ * sha256 of each inline script Next emits, no third-party scripts, connections only to the testnet RPC,
+ * the OutLayer API and the wallets' own bridges (lib/wallets.ts). `frame-ancestors` cannot be set by a
+ * meta tag; the host adds it as a header (D3).
  */
 import { createHash } from "node:crypto";
+import type { Sources } from "./wallets.ts";
 
-export const CONNECT_SRC = ["'self'", "https://rpc.testnet.near.org", "https://testnet-api.outlayer.ai"];
+const NONE: Sources = { connect: ["'self'"], frame: [], img: [] };
 
 const INLINE_SCRIPT = /<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g;
 
@@ -21,14 +23,15 @@ export function inlineScriptHashes(html: string): string[] {
   return [...out];
 }
 
-export function policy(scriptHashes: readonly string[], connectSrc: readonly string[] = CONNECT_SRC): string {
+export function policy(scriptHashes: readonly string[], src: Sources = NONE): string {
   return [
     "default-src 'none'",
     `script-src 'self' ${scriptHashes.join(" ")}`.trimEnd(),
     "style-src 'self'",
-    "img-src 'self' data:",
+    `img-src 'self' data: ${src.img.join(" ")}`.trimEnd(),
     "font-src 'self'",
-    `connect-src ${connectSrc.join(" ")}`,
+    `connect-src ${src.connect.join(" ")}`,
+    ...(src.frame.length > 0 ? [`frame-src ${src.frame.join(" ")}`] : []),
     "base-uri 'none'",
     "form-action 'none'",
     "object-src 'none'",
@@ -36,11 +39,11 @@ export function policy(scriptHashes: readonly string[], connectSrc: readonly str
 }
 
 /** Insert the policy right after `<meta charset>` (or first in `<head>`). Fails if a policy is already there. */
-export function withCsp(html: string, connectSrc?: readonly string[]): string {
+export function withCsp(html: string, src?: Sources): string {
   if (html.includes('http-equiv="Content-Security-Policy"')) throw new Error("page already has a CSP");
   const head = /<meta charset="utf-8"\/?>/i.exec(html) ?? /<head[^>]*>/.exec(html);
   if (!head) throw new Error("page has no <head>");
-  const meta = `<meta http-equiv="Content-Security-Policy" content="${policy(inlineScriptHashes(html), connectSrc)}"/>`;
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${policy(inlineScriptHashes(html), src)}"/>`;
   const at = head.index + head[0].length;
   return html.slice(0, at) + meta + html.slice(at);
 }

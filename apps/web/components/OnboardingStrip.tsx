@@ -28,7 +28,7 @@ export function OnboardingStrip({ progress }: { readonly progress: Progress }) {
   return (
     <section aria-labelledby="start" className="strip">
       <h2 id="start">Start in three steps</h2>
-      <ol>
+      <ol aria-label="Steps">
         {STEPS.map((s, i) => {
           const state = states[i] ?? "next";
           return (
