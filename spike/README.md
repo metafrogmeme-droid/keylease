@@ -69,6 +69,22 @@ node spike/runner/src/run.ts --apply
 unset NEAR_PRIVATE_KEY
 ```
 
+### If FastFS is down: host the two builds yourself
+
+OutLayer only needs a public https URL that serves the exact bytes. Upload `spike/artifacts/proxy-a.wasm`
+and `spike/artifacts/proxy-b.wasm` (from **your** `spike/build.sh` run) to any host the OutLayer worker can
+fetch without logging in, then pass both URLs:
+
+```sh
+node spike/runner/src/run.ts --wasm-url-a https://<host>/proxy-a.wasm --wasm-url-b https://<host>/proxy-b.wasm            # dry run + preflight
+node spike/runner/src/run.ts --wasm-url-a https://<host>/proxy-a.wasm --wasm-url-b https://<host>/proxy-b.wasm --apply    # live
+```
+
+Before anything goes on chain, the runner GETs each URL the way OutLayer's worker does: https on port
+443, no credentials, at most 3 redirects, at most 10 MB. It refuses unless the sha256 equals the local
+build. A file in this private repo (release asset or raw URL) needs a login, so the worker cannot fetch
+it; use a public host you control. `SPIKE_WASM_URL_A` / `SPIKE_WASM_URL_B` work instead of the flags.
+
 The runner refuses a non-`.testnet` account, a non-testnet RPC and leftover sub-accounts from an earlier
 run. The canary is random per run, lives only in memory, and the runner aborts if it ever appears in an
 output; the result file holds hashes, tx links, OutLayer's refusal messages and logs, no key and no canary.

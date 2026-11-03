@@ -6,6 +6,12 @@
  *   node spike/runner/src/run.ts --apply    # runs it; needs NEAR_ACCOUNT_ID + NEAR_PRIVATE_KEY in env
  *   node spike/runner/src/run.ts --apply --keep   # keep the sub-accounts and secret rows afterwards
  *
+ * Proxy hosting: FastFS by default. If FastFS is down, host spike/artifacts/proxy-a.wasm and proxy-b.wasm
+ * on any public https URL and pass both (or SPIKE_WASM_URL_A / SPIKE_WASM_URL_B):
+ *   node spike/runner/src/run.ts --wasm-url-a https://… --wasm-url-b https://…   [--apply]
+ * The runner then skips the FastFS upload and first checks each URL the way OutLayer's worker fetches it
+ * (src/hosting.ts), including the sha256, before anything is sent on chain.
+ *
  * Seals a random canary under the owner's account with the KeyLease lock
  * (Predecessor[kl contract] AND WasmHash[proxy]) and checks who can open it. The canary value is never
  * printed or written: rows compare only the first 8 hex of its sha256, reported by the guest.
@@ -26,12 +32,15 @@ import {
 import { leaseLock, wasmHash, type Condition } from "./conditions.ts";
 import { seal } from "./ecies.ts";
 import { FASTFS_METHOD, fastfsPayload, fastfsUrl } from "./fastfs.ts";
+import { checkHosted, flag } from "./hosting.ts";
 import { completion } from "./outcome.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const spikeDir = join(here, "../..");
 const APPLY = process.argv.includes("--apply");
 const KEEP = process.argv.includes("--keep");
+const HOSTED_A = flag(process.argv, "--wasm-url-a") ?? process.env["SPIKE_WASM_URL_A"];
+const HOSTED_B = flag(process.argv, "--wasm-url-b") ?? process.env["SPIKE_WASM_URL_B"];
 
 const env = (name: string, fallback?: string): string => {
   const v = process.env[name] ?? fallback;
@@ -74,8 +83,12 @@ async function main(): Promise<void> {
   const hA = sha256(proxyA);
   const hB = sha256(proxyB);
   if (hA === hB) throw new Error("proxy builds a and b must differ");
-  const urlA = fastfsUrl(owner, OUTLAYER, hA);
-  const urlB = fastfsUrl(owner, OUTLAYER, hB);
+  if ((HOSTED_A === undefined) !== (HOSTED_B === undefined)) {
+    throw new Error("pass both --wasm-url-a and --wasm-url-b, or neither (FastFS)");
+  }
+  const selfHosted = HOSTED_A !== undefined && HOSTED_B !== undefined;
+  const urlA = HOSTED_A ?? fastfsUrl(owner, OUTLAYER, hA);
+  const urlB = HOSTED_B ?? fastfsUrl(owner, OUTLAYER, hB);
 
   const kl = `klspike.${owner}`;
   const decoy = `kldecoy.${owner}`;
@@ -107,6 +120,13 @@ async function main(): Promise<void> {
 
   console.warn(`network ${RPC} | outlayer ${OUTLAYER} | owner ${owner}`);
   console.warn(`proxy A ${hA}\nproxy B ${hB}\ncaller  ${sha256(caller)}`);
+  console.warn(`hosting ${selfHosted ? "self-hosted" : "FastFS"}\n  A ${urlA}\n  B ${urlB}`);
+  if (selfHosted) {
+    // Only HTTP GETs, so the dry run does it too: a bad host is caught before anything is spent.
+    await checkHosted(urlA, hA);
+    await checkHosted(urlB, hB);
+    console.warn("  both URLs serve the local builds (checked like OutLayer's worker fetches them)");
+  }
   console.warn(`row A: WasmHash[A] lock ${JSON.stringify(leaseLock(kl, hA))}`);
   console.warn(`row B: WasmHash[B] lock ${JSON.stringify(leaseLock(kl, hA))} (names A on purpose)`);
   for (const r of rows) console.warn(`${r.id} expect ${r.expect.padEnd(7)} signer ${r.signer}  ${r.what}`);
@@ -159,18 +179,21 @@ async function main(): Promise<void> {
     }
 
     // Publish both builds on FastFS (the call itself fails on chain by design; the data is indexed).
-    for (const [hash, wasm] of [
-      [hA, proxyA],
-      [hB, proxyB],
-    ] as const) {
-      await ownerAcc.signAndSendTransaction({
-        receiverId: OUTLAYER,
-        actions: [actions.functionCall(FASTFS_METHOD, fastfsPayload(hash, wasm), teraToGas(300), 0n)],
-        throwOnFailure: false,
-      });
+    // Self-hosted builds were already checked above.
+    if (!selfHosted) {
+      for (const [hash, wasm] of [
+        [hA, proxyA],
+        [hB, proxyB],
+      ] as const) {
+        await ownerAcc.signAndSendTransaction({
+          receiverId: OUTLAYER,
+          actions: [actions.functionCall(FASTFS_METHOD, fastfsPayload(hash, wasm), teraToGas(300), 0n)],
+          throwOnFailure: false,
+        });
+      }
+      await waitForUrl(urlA, hA);
+      await waitForUrl(urlB, hB);
     }
-    await waitForUrl(urlA, hA);
-    await waitForUrl(urlB, hB);
 
     // Seal the canary twice: row A (accessor A, lock A) and row B (accessor B, lock still names A).
     await storeRow(provider, ownerAcc, owner, hA, secrets, leaseLock(kl, hA));
@@ -236,7 +259,7 @@ async function main(): Promise<void> {
     outlayer: OUTLAYER,
     owner,
     contracts: { kl, decoy, agent },
-    proxy: { a: hA, b: hB, urlA, urlB },
+    proxy: { a: hA, b: hB, urlA, urlB, hosting: selfHosted ? "self-hosted" : "fastfs" },
     canarySha256Prefix: canaryPrefix,
     rows: rows.map((r) => ({ ...r, link: r.tx ? `https://testnet.nearblocks.io/txns/${r.tx}` : undefined })),
   };
