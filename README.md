@@ -58,9 +58,11 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 [Open questions](docs/OPEN_QUESTIONS.md) · [Proposals](docs/PROPOSALS.md) · [Wording](docs/WORDING.md) ·
 [Verify](docs/VERIFY.md)
 
-Testnet run hosting: the demo API and the proxy wasm need a public https host. The runbook uses a Cloudflare
-quick tunnel, which needs outbound port 7844 (not only HTTPS through a proxy); docs/VERIFY.md step 2 has the
-check and a variant with the tunnel on a second machine.
+Testnet run hosting: the proxy wasm is a release asset of the public repo
+[`metafrogmeme-droid/keylease-wasm`](https://github.com/metafrogmeme-droid/keylease-wasm) (`wasm-<commit>`,
+sha256 checked by `kl` and by OutLayer); the demo API runs on the owner's laptop behind a Cloudflare quick
+tunnel. Steps in docs/VERIFY.md 2 and 2b. Testnet NEAR for gas: the
+[NEAR testnet faucet](https://docs.near.org/tools/faucet).
 
 ## Disclosure
 

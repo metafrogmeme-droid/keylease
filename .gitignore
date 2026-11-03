@@ -7,8 +7,9 @@ out/
 *.tsbuildinfo
 coverage/
 
-# spike build output (results/ is kept: tx links, no secrets)
+# spike build output and run results (results stay on the operator box; the outcome is in docs/OPEN_QUESTIONS.md)
 spike/artifacts/
+spike/results/
 
 # local tools (gitleaks binary)
 .tools/

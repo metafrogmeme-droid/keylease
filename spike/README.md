@@ -65,7 +65,7 @@ node spike/runner/src/run.ts
 # 5. live run: ~7.2 NEAR moves to 3 sub-accounts and comes back at cleanup (also on failure)
 node spike/runner/src/run.ts --apply
 
-# 6. send back the printed PASS/FAIL lines and the file spike/results/<time>.json
+# 6. send back the printed PASS/FAIL lines (spike/results/<time>.json stays on this box; git-ignored)
 unset NEAR_PRIVATE_KEY
 ```
 
@@ -89,3 +89,6 @@ The runner refuses a non-`.testnet` account, a non-testnet RPC and leftover sub-
 run. The canary is random per run, lives only in memory, and the runner aborts if it ever appears in an
 output; the result file holds hashes, tx links, OutLayer's refusal messages and logs, no key and no canary.
 Sub-account keys exist only in memory; `--keep` skips cleanup (then the sub-accounts stay unreachable).
+
+**Result (3 Nov, operator box):** `--apply` 6/6 PASS, proxy builds hosted on a GitHub release
+(`--wasm-url-a/-b`). Recorded in docs/OPEN_QUESTIONS.md (Q-001, Q-002, Q-010).
