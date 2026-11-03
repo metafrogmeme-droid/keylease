@@ -5,7 +5,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import * as sdk from "@keylease/sdk";
-import { sdkSnippet } from "../lib/snippets.ts";
+import { mcpSnippet, sdkSnippet } from "../lib/snippets.ts";
 
 const seen: { method: string; args: Record<string, unknown> }[] = [];
 
@@ -81,5 +81,20 @@ describe("Share snippets match the real packages", () => {
     ]);
     expect(log).toHaveBeenCalledWith({ ok: 1 }, "https://testnet.nearblocks.io/txns/SnippetTx");
     log.mockRestore();
+  });
+});
+
+describe("the MCP snippet matches @keylease/mcp", () => {
+  it("runs the package's server with exactly the env names it reads", async () => {
+    const { ENV, PACKAGE } = await import("@keylease/mcp");
+    const cfg = JSON.parse(mcpSnippet(info)) as {
+      mcpServers: { keylease: { command: string; args: string[]; env: Record<string, string> } };
+    };
+    const s = cfg.mcpServers.keylease;
+    expect(s.command).toBe("npx");
+    expect(s.args).toEqual(["-y", PACKAGE]);
+    expect(Object.keys(s.env).sort()).toEqual([...ENV].sort());
+    expect(s.env["KEYLEASE_LEASE_ID"]).toBe("7");
+    expect(s.env["NEAR_PRIVATE_KEY"]).toMatch(/^</u); // a placeholder, never a key
   });
 });

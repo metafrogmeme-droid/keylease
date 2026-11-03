@@ -46,6 +46,7 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 | `apps/web`                | web app (Next.js static export): TESTNET banner, onboarding, wallets, Add key, Test key, presets, Share, leases, revoke, receipts, panic button |
 | `cli`                     | `kl`: owner-run testnet CLI (deploy, add key, lease, call, receipts, revoke); see docs/VERIFY.md                                                |
 | `packages/sdk`            | `@keylease/sdk`: `lease({ contract, leaseId }).call(endpoint, body)`, testnet only                                                              |
+| `packages/mcp`            | `@keylease/mcp`: MCP server with `keylease_call` and `keylease_status` for agents                                                               |
 | `packages/outlayer`       | OutLayer helpers: keystore envelope, secret lock, wasm publishing, run outcomes                                                                 |
 | `mock-api`                | low-value demo API (OpenAI-shaped chat, echo, a header mirror that trips the tripwire)                                                          |
 | `crates/keylease-reasons` | refusal codes and hints shared by contract, proxy and clients                                                                                   |
