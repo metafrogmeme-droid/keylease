@@ -25,7 +25,8 @@ Requires Node ≥ 22.18, pnpm 10, Rust stable.
 pnpm install                     # also enables the git hooks in .githooks
 scripts/install-gitleaks.sh      # pinned gitleaks for the pre-commit hook (.tools/bin, git-ignored)
 pnpm check                       # eslint, prettier, tsc strict, vitest, copy-lint, env-lint
-cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+cargo fmt --check && cargo clippy --all-targets -- -D warnings
+scripts/build-contracts.sh && cargo test # sandbox tests need cargo-near and `ulimit -n 65535`
 ```
 
 Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never commit a key.
@@ -35,6 +36,8 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 | Path                      | What                                                                                |
 | ------------------------- | ----------------------------------------------------------------------------------- |
 | `contracts/keylease`      | NEAR contract: keys, leases, quotas, expiry, endpoints, revoke                      |
+| `contracts/mock-outlayer` | test double for OutLayer, sandbox tests only                                        |
+| `tests/sandbox`           | end-to-end tests in a local NEAR sandbox                                            |
 | `wasm/keylease-proxy`     | proxy run in the OutLayer TEE: opens the key, calls one endpoint, withholds the key |
 | `crates/keylease-reasons` | refusal codes and hints shared by contract, proxy and clients                       |
 | `crates/keylease-rules`   | input rules shared by contract and proxy                                            |

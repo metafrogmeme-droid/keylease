@@ -1,22 +1,26 @@
-//! KeyLease contract (PR 3: core). An owner registers a sealed API key once and lends calls, not the key.
+//! KeyLease contract. An owner registers a sealed API key once and lends calls, not the key.
 //!
-//! The key itself lives in OutLayer Secrets under the owner's account (locked to this contract and the
-//! proxy build); this contract keeps only its public description and the leases. `use_lease` is the gate:
-//! it checks the lease and uses one call. PR 5 makes it request the OutLayer run.
+//! The key itself lives in OutLayer Secrets under the owner's account, locked to this contract and the
+//! proxy build; this contract keeps only its public description and the leases. `use_lease` is the gate:
+//! it checks the lease, uses one call and asks OutLayer to run the proxy; `on_result` stores a receipt.
 #![allow(clippy::needless_pass_by_value)] // #[near] methods take owned arguments.
 #![allow(missing_docs)] // #[near] generates undocumented items (ext structs, wrappers).
 
 mod check;
 mod events;
+mod run;
 mod views;
 
 use keylease_rules as validate;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_run;
 
 pub use check::check;
 pub use keylease_reasons::Refusal;
+pub use run::{classify, CallInfo, Config, Outcome, Receipt, MIN_DEPOSIT, RECEIPT_RESERVE};
 pub use views::{CallCheck, KeyView, LeaseStatus, LeaseView};
 
 use near_sdk::json_types::U64;
@@ -106,6 +110,7 @@ enum StorageKey {
     LeasesByOwnerSet { owner: CryptoHash },
     LeasesByGrantee,
     LeasesByGranteeSet { grantee: CryptoHash },
+    Receipts,
 }
 
 /// Contract state.
@@ -118,17 +123,22 @@ pub struct KeyLease {
     keys_by_owner: LookupMap<AccountId, IterableSet<u64>>,
     leases_by_owner: LookupMap<AccountId, IterableSet<u64>>,
     leases_by_grantee: LookupMap<AccountId, IterableSet<u64>>,
+    receipts: LookupMap<(u64, u32), Receipt>,
+    config: Config,
     next_key_id: u64,
     next_lease_id: u64,
 }
 
 #[near]
 impl KeyLease {
-    /// Fresh state.
+    /// Fresh state. The caller becomes the admin who may point the contract at a new proxy build.
     #[init]
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(outlayer: AccountId, proxy_url: String, proxy_hash: String) -> Self {
+        let config = Config::new(env::predecessor_account_id(), outlayer, proxy_url, proxy_hash);
         Self {
+            receipts: LookupMap::new(StorageKey::Receipts),
+            config,
             keys: LookupMap::new(StorageKey::Keys),
             leases: LookupMap::new(StorageKey::Leases),
             owner_epochs: LookupMap::new(StorageKey::OwnerEpochs),
@@ -283,23 +293,6 @@ impl KeyLease {
         self.owner_epochs.insert(caller.clone(), next);
         events::revoked_all(None, &caller);
     }
-
-    /// Use one call of a lease on `endpoint`. Refuses with `<code>: <hint>` (docs/WORDING.md).
-    /// Returns the call number (1-based). PR 5 makes this request the OutLayer run.
-    pub fn use_lease(&mut self, lease_id: U64, endpoint: String) -> u32 {
-        let caller = env::predecessor_account_id();
-        if let Err(r) = self.check_internal(lease_id.0, &caller, &endpoint) {
-            refuse(r);
-        }
-        let lease = self
-            .leases
-            .get_mut(&lease_id.0)
-            .unwrap_or_else(|| refuse(Refusal::LeaseNotFound));
-        lease.calls_used += 1;
-        let n = lease.calls_used;
-        events::call_authorized(lease_id.0, &caller, &endpoint, n);
-        n
-    }
 }
 
 impl KeyLease {
@@ -316,7 +309,12 @@ impl KeyLease {
         key
     }
 
-    fn check_internal(&self, lease_id: u64, caller: &AccountId, endpoint: &str) -> Result<(), Refusal> {
+    pub(crate) fn check_internal(
+        &self,
+        lease_id: u64,
+        caller: &AccountId,
+        endpoint: &str,
+    ) -> Result<(), Refusal> {
         let lease = self.leases.get(&lease_id);
         let key = lease.and_then(|l| self.keys.get(&l.key_id));
         let owner_epoch = lease.map_or(0, |l| self.owner_epoch(&l.owner));
@@ -372,6 +370,6 @@ fn ok(r: Result<(), &'static str>) {
 }
 
 /// Panic with a refusal in the shared `<code>: <hint>` form.
-fn refuse(r: Refusal) -> ! {
+pub(crate) fn refuse(r: Refusal) -> ! {
     env::panic_str(&format!("{}: {}", r.code(), r.hint()))
 }
