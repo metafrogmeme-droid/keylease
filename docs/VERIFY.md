@@ -57,13 +57,20 @@ export NEAR_ACCOUNT_ID=<you>.testnet
 read -rs NEAR_PRIVATE_KEY && export NEAR_PRIVATE_KEY     # ed25519:…, not echoed
 ```
 
-**2. Demo API.** Host `mock-api` on any public https host (`MOCK_API_KEY=… node mock-api/src/serve.ts`
-behind TLS, or a Vercel/Workers deploy of `mock-api/src/handler.ts`). Keep the same key in this shell:
+**2. Demo API and proxy file.** One small server on this machine serves both: the mock API (key required)
+and, with `WASM_DIR`, the proxy wasm at `/wasm/keylease-proxy.wasm` (public, as OutLayer fetches it without
+logging in). A Cloudflare quick tunnel gives it a public https name:
 
 ```sh
 read -rs MOCK_API_KEY && export MOCK_API_KEY
-curl -s -H "authorization: Bearer $MOCK_API_KEY" https://<mock host>/v1/models
+MOCK_API_KEY=$MOCK_API_KEY WASM_DIR=target/proxy PORT=8787 node mock-api/src/serve.ts &
+cloudflared tunnel --url http://localhost:8787        # prints https://<name>.trycloudflare.com
+curl -s -H "authorization: Bearer $MOCK_API_KEY" https://<name>.trycloudflare.com/v1/models
+curl -s https://<name>.trycloudflare.com/wasm/keylease-proxy.wasm | sha256sum   # = build-proxy.sh sha256
 ```
+
+In the steps below, `<mock host>` is `<name>.trycloudflare.com`; while FastFS is down, deploy with
+`--proxy-url https://<name>.trycloudflare.com/wasm/keylease-proxy.wasm`.
 
 Expect `{"object":"list","data":[{"id":"keylease-mock-1",…}]}`.
 
@@ -187,6 +194,12 @@ calls      2 used, 1 left
 expires    <ISO time>
 endpoints  /v1/chat/completions /debug/headers
 ```
+
+**If the host's URL changes** (a Cloudflare quick tunnel gets a new `*.trycloudflare.com` name on every
+restart): for the proxy, `kl set-proxy --proxy-url https://<new host>/keylease-proxy.wasm` points the
+contract at the same build (it refuses a different build, and checks the URL first); expect `proxy` and
+`proxy url` lines and a `tx` link. For the demo API, run step 4 again with the new `--base-url` (a new key id)
+and lease from that key; the old key keeps its old URL.
 
 `kl revoke --everything` is the panic button (every lease of the account in one transaction);
 `kl revoke --key 0` revokes every lease on one key.

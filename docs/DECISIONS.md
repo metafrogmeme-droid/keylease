@@ -4,20 +4,20 @@
 
 Defaults from the brief (§11) apply until Patrick decides. Update the row when he does.
 
-| ID  | Question                                        | Default                                                        | Status             |
-| --- | ----------------------------------------------- | -------------------------------------------------------------- | ------------------ |
-| D1  | Name and repo name                              | KeyLease, `metafrogmeme-droid/keylease`, private until 13 Nov  | default            |
-| D2  | Who creates the repo                            | Patrick                                                        | done (repo exists) |
-| D3  | Demo hosting until 25 Nov                       | Vercel static + mock API on a Vercel function                  | open               |
-| D4  | `business` track via HTTPS pay-per-call (PR 14) | yes if PR 14 lands                                             | open               |
-| D5  | Sponsored judge key                             | function-call key, ≤ 0.5 testnet NEAR allowance, mock key only | open               |
-| D6  | Mainnet proof (§10)                             | no                                                             | open               |
-| D7  | Reown / WalletConnect projectId                 | Patrick creates it at cloud.reown.com; needed by PR 7          | open               |
-| D8  | NEAR AI Cloud demo key                          | $10 Builders credit, provider-side hard limit                  | open               |
-| D9  | Tools line in README vs no-labels rule (R1)     | one neutral tools line                                         | open               |
-| D10 | Payout NEAR account                             | same as entry 1                                                | open               |
-| D11 | Steal the Key public before judging, prize      | open on hosted demo after PR 12b; no money prize               | open               |
-| D12 | `swarms` track                                  | yes if PR 10b merged                                           | open               |
+| ID  | Question                                        | Default                                                        | Status                                                                                                                                        |
+| --- | ----------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Name and repo name                              | KeyLease, `metafrogmeme-droid/keylease`, private until 13 Nov  | default                                                                                                                                       |
+| D2  | Who creates the repo                            | Patrick                                                        | done (repo exists)                                                                                                                            |
+| D3  | Demo hosting until 25 Nov                       | Vercel static + mock API on a Vercel function                  | **testnet run**: operator box, `mock-api` and the proxy wasm behind a Cloudflare quick tunnel (`*.trycloudflare.com`); hosted demo still open |
+| D4  | `business` track via HTTPS pay-per-call (PR 14) | yes if PR 14 lands                                             | open                                                                                                                                          |
+| D5  | Sponsored judge key                             | function-call key, ≤ 0.5 testnet NEAR allowance, mock key only | open                                                                                                                                          |
+| D6  | Mainnet proof (§10)                             | no                                                             | open                                                                                                                                          |
+| D7  | Reown / WalletConnect projectId                 | Patrick creates it at cloud.reown.com; needed by PR 7          | open                                                                                                                                          |
+| D8  | NEAR AI Cloud demo key                          | $10 Builders credit, provider-side hard limit                  | open                                                                                                                                          |
+| D9  | Tools line in README vs no-labels rule (R1)     | one neutral tools line                                         | open                                                                                                                                          |
+| D10 | Payout NEAR account                             | same as entry 1                                                | open                                                                                                                                          |
+| D11 | Steal the Key public before judging, prize      | open on hosted demo after PR 12b; no money prize               | open                                                                                                                                          |
+| D12 | `swarms` track                                  | yes if PR 10b merged                                           | open                                                                                                                                          |
 
 ## Engineering decision log
 

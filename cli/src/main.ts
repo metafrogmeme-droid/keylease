@@ -10,14 +10,24 @@
  *   kl receipts --lease ID
  *   kl status   --lease ID
  *   kl revoke   --lease ID | --key ID | --everything
+ *   kl set-proxy --proxy-url https://…                  same proxy build, new URL (admin)
  *
  * Exit codes: 0 done, 2 refused (a lease rule said no), 1 error.
  */
 import { parseArgs } from "node:util";
 import { settings } from "./env.ts";
-import { addKey, call, deploy, lease, receipts, revoke, status, type Opts } from "./commands.ts";
+import { addKey, call, deploy, lease, receipts, revoke, setProxy, status, type Opts } from "./commands.ts";
 
-const COMMANDS = { deploy, "add-key": addKey, lease, call, receipts, status, revoke } as const;
+const COMMANDS = {
+  deploy,
+  "add-key": addKey,
+  lease,
+  call,
+  receipts,
+  status,
+  revoke,
+  "set-proxy": setProxy,
+} as const;
 
 const s = { type: "string" } as const;
 const { positionals, values } = parseArgs({
