@@ -14,7 +14,7 @@
  *
  * Exit codes: 0 done, 2 refused (a lease rule said no), 1 error.
  */
-import { parseArgs } from "node:util";
+import { parse } from "./args.ts";
 import { settings } from "./env.ts";
 import { addKey, call, deploy, lease, receipts, revoke, setProxy, status, type Opts } from "./commands.ts";
 
@@ -29,31 +29,7 @@ const COMMANDS = {
   "set-proxy": setProxy,
 } as const;
 
-const s = { type: "string" } as const;
-const { positionals, values } = parseArgs({
-  allowPositionals: true,
-  options: {
-    fund: s,
-    wasm: s,
-    proxy: s,
-    "proxy-url": s,
-    "key-env": s,
-    "base-url": s,
-    provider: s,
-    profile: s,
-    label: s,
-    key: s,
-    grantee: s,
-    calls: s,
-    for: s,
-    endpoint: { type: "string", multiple: true },
-    lease: s,
-    method: s,
-    body: s,
-    deposit: s,
-    everything: { type: "boolean" },
-  },
-});
+const { positionals, values } = parse(process.argv.slice(2));
 
 const name = positionals[0] as keyof typeof COMMANDS | undefined;
 const run = name ? COMMANDS[name] : undefined;
