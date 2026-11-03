@@ -14,8 +14,14 @@ export interface WalletState {
   readonly busy: boolean;
   readonly connect: (id: WalletId) => Promise<void>;
   readonly disconnect: () => Promise<void>;
-  /** Sign and send with the connected wallet; returns tx hashes (none when the wallet redirects away). */
-  readonly send: (txs: readonly Tx[]) => Promise<string[]>;
+  /** Sign and send with the connected wallet; returns final outcomes (none when the wallet redirects away). */
+  readonly send: (txs: readonly Tx[]) => Promise<unknown[]>;
+}
+
+/** The transaction hash of a final outcome. */
+export function txHash(outcome: unknown): string | null {
+  const id = (outcome as { transaction_outcome?: { id?: unknown } } | null)?.transaction_outcome?.id;
+  return typeof id === "string" ? id : null;
 }
 
 export interface Tx {
@@ -109,7 +115,7 @@ export function WalletProvider({ children }: { readonly children: ReactNode }) {
     async (txs: readonly Tx[]) => {
       if (!selector) throw new Error("Connect a wallet first.");
       const out = await (await selector.wallet()).signAndSendTransactions({ transactions: [...txs] });
-      return (out ?? []).map((o) => o.transaction_outcome.id);
+      return out ?? [];
     },
     [selector],
   );

@@ -25,6 +25,8 @@ describe("WCAG AA contrast (≥ 4.5:1) for every text colour pair", () => {
     ["accent", "bg"],
     ["banner-fg", "banner-bg"],
     ["bg", "done"],
+    ["done", "bg"],
+    ["bad", "bg"],
   ];
   it.each(pairs)("%s on %s", (fg, bg) => {
     const a = vars.get(fg);

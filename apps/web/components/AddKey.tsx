@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { KeystoreUnreachable, keyTransactions, type KeyForm } from "../lib/addkey.ts";
 import { config } from "../lib/config.ts";
 import { PROVIDERS, type ProviderId } from "../lib/rules.ts";
-import { useWallet } from "./WalletProvider.tsx";
+import { txHash, useWallet } from "./WalletProvider.tsx";
 
 type Status =
   | { kind: "idle" }
@@ -32,8 +32,8 @@ export function AddKey({ onAdded }: { readonly onAdded?: () => void }) {
       setStatus({ kind: "working", step: "Sealing the key in this browser…" });
       const built = await keyTransactions(config, w.accountId, form, apiKey);
       setStatus({ kind: "working", step: "Confirm the two transactions in your wallet…" });
-      const hashes = await w.send(built.transactions);
-      setStatus({ kind: "done", hashes });
+      const outcomes = await w.send(built.transactions);
+      setStatus({ kind: "done", hashes: outcomes.map(txHash).filter((h): h is string => h !== null) });
       onAdded?.();
     } catch (err) {
       setStatus({ kind: "error", text: errorText(err) });

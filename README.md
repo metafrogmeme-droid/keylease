@@ -42,7 +42,7 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 | `contracts/mock-outlayer` | test double for OutLayer, sandbox tests only                                                     |
 | `tests/sandbox`           | end-to-end tests in a local NEAR sandbox                                                         |
 | `wasm/keylease-proxy`     | proxy run in the OutLayer TEE: opens the key, calls one endpoint, withholds the key              |
-| `apps/web`                | web app (Next.js static export): TESTNET banner, onboarding strip, wallets, Add key              |
+| `apps/web`                | web app (Next.js static export): TESTNET banner, onboarding strip, wallets, Add key, Test key    |
 | `cli`                     | `kl`: owner-run testnet CLI (deploy, add key, lease, call, receipts, revoke); see docs/VERIFY.md |
 | `packages/outlayer`       | OutLayer helpers: keystore envelope, secret lock, wasm publishing, run outcomes                  |
 | `mock-api`                | low-value demo API (OpenAI-shaped chat, echo, a header mirror that trips the tripwire)           |

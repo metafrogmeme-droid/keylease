@@ -229,6 +229,26 @@ checks the URL first); expect `proxy` and `proxy url` lines and a `tx` link.
 Costs: each `kl call` attaches 0.025 NEAR. OutLayer refunds the unused compute to the caller; 0.005 NEAR
 stays with the contract for the receipt. A refused call costs only gas.
 
+## Web app, by hand (PR 7)
+
+After steps 0-3 (contract deployed, proxy on its release, demo API up on the laptop):
+
+```sh
+NEXT_PUBLIC_KEYLEASE_CONTRACT_ID=keylease.<you>.testnet pnpm --filter @keylease/web build
+node apps/web/scripts/serve.ts apps/web/out 4173       # then open http://127.0.0.1:4173
+```
+
+1. TESTNET banner names `keylease.<you>.testnet`; the strip shows Connect · Add key · Share.
+2. Connect wallet → Meteor, HOT, Intear or MetaMask (MyNearWallet works for Add key but leaves the page,
+   so it cannot finish Test key). Expect `Connected as <account>` and step 1 ✓.
+3. Add key: provider OpenAI-compatible, base URL `https://<mock host>/v1`, paste the demo key, label `web
+demo`, Seal and add key, confirm two transactions. Expect the field empty at once, then `✓ Key added.`
+   with two tx links. If instead you see `OutLayer's keystore did not answer this page`, the API refuses
+   this origin (Q-011); use step 4 (`kl add-key`) meanwhile.
+4. Your keys → Test key on `web demo`, confirm two transactions (a one-call lease to yourself, then the
+   call on `/models`, 0.025 NEAR). Expect `✓ The key works: the API answered HTTP 200 through the proxy.`
+   and a `receipt tx` link.
+
 ## Attestation (PR 12, planned)
 
 Paste an execution id into the Verify page: wasm hash, input/output hash, Intel TDX quote check result.
