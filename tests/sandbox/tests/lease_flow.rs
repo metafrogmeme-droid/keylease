@@ -37,6 +37,7 @@ async fn world() -> anyhow::Result<World> {
         .await?;
     kl.call("new")
         .args_json(json!({
+            "admin": kl.id(),
             "outlayer": mock.id(),
             "proxy_url": format!("https://test.fastfs.io/kl.testnet/outlayer.testnet/{PROXY_HASH}.wasm"),
             "proxy_hash": PROXY_HASH,
@@ -216,5 +217,33 @@ async fn quota_and_panic_button() -> anyhow::Result<()> {
         .err()
         .unwrap_or_default();
     assert!(after.contains("lease_revoked"), "{after}");
+    Ok(())
+}
+
+#[tokio::test]
+async fn only_the_contract_itself_can_initialise_it() -> anyhow::Result<()> {
+    let sandbox = near_workspaces::sandbox().await?;
+    let kl = sandbox
+        .dev_deploy(&wasm(
+            "KEYLEASE_WASM",
+            "target/near/keylease_contract/keylease_contract.wasm",
+        )?)
+        .await?;
+    let mallory = sandbox.dev_create_account().await?;
+    let args = json!({
+        "admin": mallory.id(), "outlayer": mallory.id(),
+        "proxy_url": format!("https://test.fastfs.io/kl.testnet/outlayer.testnet/{PROXY_HASH}.wasm"),
+        "proxy_hash": PROXY_HASH,
+    });
+    let front_run = mallory.call(kl.id(), "new").args_json(&args).transact().await?;
+    assert!(
+        front_run.is_failure(),
+        "a stranger must not initialise the contract"
+    );
+    let mut own = args.clone();
+    own["admin"] = json!(kl.id());
+    kl.call("new").args_json(own).transact().await?.into_result()?;
+    let config: Value = kl.view("get_config").await?.json()?;
+    assert_eq!(config["admin"], kl.id().as_str());
     Ok(())
 }

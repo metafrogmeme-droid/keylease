@@ -131,11 +131,14 @@ pub struct KeyLease {
 
 #[near]
 impl KeyLease {
-    /// Fresh state. The caller becomes the admin who may point the contract at a new proxy build.
+    /// Fresh state. Private: only the contract account itself can initialise it, so nobody can front-run
+    /// a deploy and make themselves admin (`cli deploy` sends the code and `new` in one transaction).
+    /// `admin` may point the contract at a new proxy build (`set_proxy`).
     #[init]
+    #[private]
     #[must_use]
-    pub fn new(outlayer: AccountId, proxy_url: String, proxy_hash: String) -> Self {
-        let config = Config::new(env::predecessor_account_id(), outlayer, proxy_url, proxy_hash);
+    pub fn new(admin: AccountId, outlayer: AccountId, proxy_url: String, proxy_hash: String) -> Self {
+        let config = Config::new(admin, outlayer, proxy_url, proxy_hash);
         Self {
             receipts: LookupMap::new(StorageKey::Receipts),
             config,

@@ -244,6 +244,7 @@ fn others_cannot_repoint_the_proxy() {
 fn proxy_hash_is_validated() {
     ctx("admin.testnet", T0, 1000);
     let _ = KeyLease::new(
+        acct("admin.testnet"),
         acct("outlayer.testnet"),
         "https://x.example/p.wasm".into(),
         "AB".repeat(32),

@@ -15,3 +15,10 @@ export {
   type Fetcher,
 } from "./hosting.ts";
 export { completion, type Completed } from "./outcome.ts";
+export {
+  fetchKeystorePubkey,
+  pubkeyRequest,
+  PROXY_KEY_ENV,
+  secretsJson,
+  storeSecretsArgs,
+} from "./secrets.ts";
