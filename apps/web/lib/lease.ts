@@ -13,13 +13,22 @@ export function leaseTx(
   calls: number,
   expiresAt: bigint,
   endpoints: readonly string[],
+  /** Let the holder move it (Key Pass, E-019). Left out when false, so older contracts accept the call. */
+  transferable = false,
 ): Tx {
   return {
     receiverId: contractId,
     actions: [
       actionCreators.functionCall(
         "create_lease",
-        { key_id: keyId, grantee, calls, expires_at: expiresAt.toString(), endpoints: [...endpoints] },
+        {
+          key_id: keyId,
+          grantee,
+          calls,
+          expires_at: expiresAt.toString(),
+          endpoints: [...endpoints],
+          ...(transferable ? { transferable: true } : {}),
+        },
         50n * TGAS,
         LEASE_DEPOSIT,
       ),

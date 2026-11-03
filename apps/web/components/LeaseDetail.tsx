@@ -3,8 +3,10 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { config } from "../lib/config.ts";
 import { view } from "../lib/near-rpc.ts";
+import { KeyPassTransfer } from "./KeyPassTransfer.tsx";
 import { Receipts } from "./Receipts.tsx";
 import { SharePanel } from "./SharePanel.tsx";
+import { useWallet } from "./WalletProvider.tsx";
 
 export interface LeaseView {
   readonly lease_id: string;
@@ -17,6 +19,10 @@ export interface LeaseView {
   readonly expires_at: string;
   readonly endpoints: string[];
   readonly status: "active" | "revoked" | "expired" | "used_up";
+  /** Sub-leases (PR 10b); absent on contracts from before it. */
+  readonly parent?: string | null;
+  readonly depth?: number;
+  readonly issuer?: string;
 }
 
 /** "in 3 h", "in 2 days", "5 min ago": plain time to or since a nanosecond timestamp. */
@@ -42,8 +48,10 @@ const STATUS: Record<LeaseView["status"], string> = {
 /** The page a lease link opens: what the lease allows, and how to use it. */
 export function LeaseDetail() {
   const id = useSearchParams().get("id");
+  const w = useWallet();
   const [lease, setLease] = useState<LeaseView | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [moved, setMoved] = useState<{ to: string; tx: string | null } | null>(null);
 
   useEffect(() => {
     if (id === null || !/^\d{1,20}$/u.test(id)) return;
@@ -83,6 +91,30 @@ export function LeaseDetail() {
           ))}
         </dd>
       </dl>
+      {moved && (
+        <p>
+          ✓ Key Pass {lease.lease_id} moved to {moved.to}. Your account is refused on this lease from now on.{" "}
+          {moved.tx && (
+            <a
+              href={`https://testnet.nearblocks.io/txns/${moved.tx}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              tx {moved.tx}
+            </a>
+          )}
+        </p>
+      )}
+      {lease.status === "active" && w.accountId === lease.grantee && (lease.depth ?? 0) === 0 && (
+        <KeyPassTransfer
+          leaseId={lease.lease_id}
+          holder={lease.grantee}
+          onMoved={(to, tx) => {
+            setMoved({ to, tx });
+            setLease({ ...lease, grantee: to });
+          }}
+        />
+      )}
       {lease.status === "active" && (
         <SharePanel
           info={{

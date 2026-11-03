@@ -74,5 +74,8 @@ export function failureText(err: unknown): string {
   const r = refusalIn(text);
   if (r) return `${r.code}: ${r.hint}`;
   if (/reject|cancel|closed/i.test(text)) return "The wallet declined the transaction.";
+  // A contract limit (`require!`) is a plain sentence: show just that.
+  const said = /panicked: ([^"\\]+)/u.exec(text)?.[1]?.trim();
+  if (said) return said;
   return text.slice(0, 200);
 }

@@ -26,7 +26,7 @@ export const MAX_CALLS = 1_000_000;
 export const MAX_HOURS = 365 * 24;
 export const MAX_ENDPOINTS = 16;
 
-const ACCOUNT = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/u;
+export const ACCOUNT = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/u;
 const ENDPOINT = /^(\/[A-Za-z0-9._~-]+)+$/u;
 
 export interface LeaseForm {
