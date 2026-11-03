@@ -1,0 +1,22 @@
+[package]
+name = "keylease-contract"
+version = "0.1.0"
+description = "KeyLease NEAR contract: sealed API keys, call leases, quotas, expiry, endpoints, revoke."
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5.30"
+keylease-reasons = { path = "../../crates/keylease-reasons" }
+
+[dev-dependencies]
+near-sdk = { version = "5.30", features = ["unit-testing"] }
+
+[lints]
+workspace = true

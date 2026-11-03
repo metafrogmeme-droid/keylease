@@ -33,6 +33,7 @@ fails if this table and the code differ.
 | `tripwire`              | The call looked like an attempt to read the key, so it was stopped and recorded on chain.     |
 | `parent_revoked`        | A lease above this one was revoked; ask the agent that shared it with you for a new lease.    |
 | `parent_quota_used`     | A lease above this one has no calls left; ask the agent that shared it with you.              |
+| `lease_not_found`       | No lease has this id; check the lease id you were given.                                      |
 
 ## Forbidden (copy-lint rules)
 

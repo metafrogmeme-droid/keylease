@@ -25,11 +25,13 @@ pub enum Refusal {
     ParentRevoked,
     /// A parent lease in the sub-lease chain has no calls left.
     ParentQuotaUsed,
+    /// No lease has this id.
+    LeaseNotFound,
 }
 
 impl Refusal {
     /// Every refusal, in display order.
-    pub const ALL: [Refusal; 8] = [
+    pub const ALL: [Refusal; 9] = [
         Refusal::LeaseExpired,
         Refusal::QuotaUsed,
         Refusal::EndpointNotInLease,
@@ -38,6 +40,7 @@ impl Refusal {
         Refusal::Tripwire,
         Refusal::ParentRevoked,
         Refusal::ParentQuotaUsed,
+        Refusal::LeaseNotFound,
     ];
 
     /// Machine-readable code, stable across releases. Lowercase `snake_case`.
@@ -52,6 +55,7 @@ impl Refusal {
             Refusal::Tripwire => "tripwire",
             Refusal::ParentRevoked => "parent_revoked",
             Refusal::ParentQuotaUsed => "parent_quota_used",
+            Refusal::LeaseNotFound => "lease_not_found",
         }
     }
 
@@ -77,6 +81,7 @@ impl Refusal {
             Refusal::ParentQuotaUsed => {
                 "A lease above this one has no calls left; ask the agent that shared it with you."
             }
+            Refusal::LeaseNotFound => "No lease has this id; check the lease id you were given.",
         }
     }
 

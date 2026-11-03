@@ -68,3 +68,17 @@ CI. Nothing in `spike/` is imported by product code; PR 3 starts the real contra
 - Contract upgradable on testnet until code freeze, then locked; upgrade = new contract id (Q-009, T19).
 - HACKATHON.md re-read 3 Nov 07:25 CET: no rule change, deadline 2026-11-14T23:59Z (Q-004).
 - If spike row S6 fails, receipts keep hashes on chain and the body travels off chain (Q-010).
+
+### E-009 (PR 3) Contract core choices
+
+- **Revoke epochs.** `revoke_all(key)` and `revoke_all_owner()` bump a counter; a lease records the
+  counters at creation and is refused once they differ. Revoking any number of leases costs one write, so
+  the panic button cannot run out of gas.
+- **Exact endpoints.** A lease lists exact paths (`/v1/chat/completions`), validated: ASCII
+  `A-Za-z0-9-._~/`, no empty, `.` or `..` segment, no query. No prefix matching, so no path tricks.
+- **Refusal order.** `lease_not_found`, then `not_lease_holder` (a stranger learns nothing more), then
+  `lease_revoked`, `lease_expired`, `endpoint_not_in_lease`, `quota_used`. New code `lease_not_found`.
+- **Errors as `<code>: <hint>`.** `use_lease` panics with the shared wording; `check_call` is the free view
+  agents and the UI use first.
+- **Storage.** Every write is charged exactly to the caller (rest refunded); removals refund.
+- **`use_lease` without OutLayer.** PR 3 only checks and uses the call; PR 5 adds `request_execution`.
