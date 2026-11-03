@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { WalletSelector } from "@near-wallet-selector/core";
+import type { Action, WalletSelector } from "@near-wallet-selector/core";
 import { config } from "../lib/config.ts";
 import { createSelector } from "../lib/selector.ts";
 import type { WalletId } from "../lib/wallets.ts";
@@ -14,6 +14,13 @@ export interface WalletState {
   readonly busy: boolean;
   readonly connect: (id: WalletId) => Promise<void>;
   readonly disconnect: () => Promise<void>;
+  /** Sign and send with the connected wallet; returns tx hashes (none when the wallet redirects away). */
+  readonly send: (txs: readonly Tx[]) => Promise<string[]>;
+}
+
+export interface Tx {
+  readonly receiverId: string;
+  readonly actions: Action[];
 }
 
 const idle = async () => {
@@ -28,6 +35,7 @@ export const WalletContext = createContext<WalletState>({
   busy: false,
   connect: idle,
   disconnect: idle,
+  send: () => Promise.reject(new Error("Connect a wallet first.")),
 });
 
 export const useWallet = () => useContext(WalletContext);
@@ -97,9 +105,18 @@ export function WalletProvider({ children }: { readonly children: ReactNode }) {
     }
   }, [selector]);
 
+  const send = useCallback(
+    async (txs: readonly Tx[]) => {
+      if (!selector) throw new Error("Connect a wallet first.");
+      const out = await (await selector.wallet()).signAndSendTransactions({ transactions: [...txs] });
+      return (out ?? []).map((o) => o.transaction_outcome.id);
+    },
+    [selector],
+  );
+
   const value = useMemo<WalletState>(
-    () => ({ ready: selector !== null, accountId, walletId, error, busy, connect, disconnect }),
-    [selector, accountId, walletId, error, busy, connect, disconnect],
+    () => ({ ready: selector !== null, accountId, walletId, error, busy, connect, disconnect, send }),
+    [selector, accountId, walletId, error, busy, connect, disconnect, send],
   );
   return <WalletContext value={value}>{children}</WalletContext>;
 }

@@ -32,6 +32,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@keylease/outlayer':
+        specifier: workspace:*
+        version: link:../../packages/outlayer
       '@near-wallet-selector/core':
         specifier: 10.1.4
         version: 10.1.4(@near-js/keystores@2.5.1(@near-js/crypto@2.5.1(@near-js/types@2.5.1)(@near-js/utils@2.5.1(@near-js/types@2.5.1)))(@near-js/types@2.5.1))(@near-js/utils@2.5.1(@near-js/types@2.5.1))
