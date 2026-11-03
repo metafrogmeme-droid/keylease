@@ -1,0 +1,24 @@
+# deps / build
+node_modules/
+target/
+dist/
+.next/
+out/
+*.tsbuildinfo
+coverage/
+
+# local tools (gitleaks binary)
+.tools/
+
+# secrets: env only, never committed
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+.near-credentials/
+
+# misc
+.DS_Store
+*.log
