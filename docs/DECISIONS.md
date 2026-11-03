@@ -27,7 +27,8 @@ Short records of choices made while building. Newest last.
 
 Private-repo Actions minutes are limited and billed per job, rounded up per minute. CI is one job on every
 PR: secrets scan and copy rules always run; the Node and Rust steps run only when their paths changed (and
-always on `main`). pnpm store and cargo builds are cached.
+always on `main`). pnpm store and cargo builds are cached. Editing a PR's title or body re-runs only the
+PR text lint.
 
 ### E-002 (PR 1) gitleaks from the pinned release binary, not the marketplace action
 

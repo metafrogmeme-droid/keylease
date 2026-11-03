@@ -2,6 +2,8 @@ name: ci
 
 on:
   pull_request:
+    # `edited` re-lints the PR title and body only (every other step is skipped).
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -9,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event.action == 'edited' && 'text' || 'full' }}
   cancel-in-progress: true
 
 env:
@@ -33,7 +35,12 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
         run: |
+          if [ "$ACTION" = edited ]; then
+            echo "full=false" >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "full=true" >>"$GITHUB_OUTPUT"
           if [ "$EVENT" != pull_request ]; then
             echo "node=true" >>"$GITHUB_OUTPUT"; echo "rust=true" >>"$GITHUB_OUTPUT"; exit 0
           fi
@@ -46,14 +53,18 @@ jobs:
 
       # --- secrets: every PR, full history, verbose ---
       - uses: actions/cache@v5
+        if: steps.changes.outputs.full == 'true'
         with:
           path: .tools
           key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-gitleaks.sh') }}
       - name: Install gitleaks (pinned, checksum-verified)
+        if: steps.changes.outputs.full == 'true'
         run: scripts/install-gitleaks.sh
       - name: gitleaks full history
+        if: steps.changes.outputs.full == 'true'
         run: .tools/bin/gitleaks git --config .gitleaks.toml --ignore-gitleaks-allow --redact -v --no-banner --log-opts=--all .
       - name: gitleaks self-test (planted fake keys must be caught)
+        if: steps.changes.outputs.full == 'true'
         run: GITLEAKS=.tools/bin/gitleaks scripts/gitleaks-selftest.sh
 
       # --- repo rules: every PR (Node only, no install needed) ---
@@ -63,11 +74,13 @@ jobs:
           node-version: 22
           cache: ${{ steps.changes.outputs.node == 'true' && 'pnpm' || '' }}
       - name: copy-lint
+        if: steps.changes.outputs.full == 'true'
         run: node tools/repo-lint/src/cli.ts copy
       - name: env-lint
+        if: steps.changes.outputs.full == 'true'
         run: node tools/repo-lint/src/cli.ts env
       - name: commit-lint (author, no tool labels)
-        if: github.event_name == 'pull_request'
+        if: steps.changes.outputs.full == 'true' && github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -81,27 +94,27 @@ jobs:
 
       # --- TypeScript ---
       - name: pnpm install
-        if: steps.changes.outputs.node == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
         run: pnpm install --frozen-lockfile
       - name: eslint + prettier
-        if: steps.changes.outputs.node == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
         run: pnpm lint
       - name: typecheck
-        if: steps.changes.outputs.node == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
         run: pnpm typecheck
       - name: test
-        if: steps.changes.outputs.node == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.node == 'true'
         run: pnpm test
 
       # --- Rust ---
       - uses: Swatinem/rust-cache@v2
-        if: steps.changes.outputs.rust == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
       - name: rustfmt
-        if: steps.changes.outputs.rust == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: cargo fmt --all --check
       - name: clippy
-        if: steps.changes.outputs.rust == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: cargo test
-        if: steps.changes.outputs.rust == 'true'
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: cargo test --workspace --locked
