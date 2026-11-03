@@ -5,3 +5,4 @@ packages:
   - "spike/runner"
   - "mock-api"
   - "cli"
+  - "examples"

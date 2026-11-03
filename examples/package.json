@@ -1,0 +1,18 @@
+{
+  "name": "@keylease/examples",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "KeyLease examples: a small agent, and the prompt-injection attack run that writes docs/ATTACK_LOG.md. Testnet only.",
+  "scripts": {
+    "agent": "node src/agent.ts",
+    "attack": "node src/attack.ts",
+    "attack:plan": "node src/attack.ts --plan",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@keylease/sdk": "workspace:*"
+  }
+}
