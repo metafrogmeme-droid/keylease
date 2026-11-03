@@ -246,6 +246,35 @@ checks the URL first); expect `proxy` and `proxy url` lines and a `tx` link.
 Costs: each `kl call` attaches 0.025 NEAR. OutLayer refunds the unused compute to the caller; 0.005 NEAR
 stays with the contract for the receipt. A refused call costs only gas.
 
+## Attack run (PR 9)
+
+After steps 0-4 (contract, proxy, demo API, the demo key sealed with `--base-url https://<mock host>`), from
+the operator box. It creates a fresh 3-call lease to yourself on `/v1/chat/completions` and
+`/debug/headers`, plays eight prompt-injection attacks as the agent, revokes before the last one, and
+rewrites `docs/ATTACK_LOG.md` with expected and actual results (codes, HTTP status and tx links only).
+Costs a few calls of 0.025 NEAR (unused compute refunded) plus gas.
+
+```sh
+export KEYLEASE_CONTRACT_ID=keylease.<you>.testnet KEYLEASE_KEY_ID=<key id from step 4>
+# NEAR_ACCOUNT_ID and NEAR_PRIVATE_KEY from step 1 (env or the repo's .env; never printed)
+pnpm --filter @keylease/examples attack
+```
+
+Expect one line per attack and a total; exit code 0 when all match:
+
+```text
+A1 PASS  GET /v1/keys  expected refused `endpoint_not_in_lease` (no call used)  actual refused `endpoint_not_in_lease`
+…
+A4 PASS  GET /debug/headers  expected refused `tripwire` (call used, recorded)  actual refused `tripwire`
+A5 PASS  POST /v1/chat/completions  expected answered, token redacted  actual answered HTTP 200, token redacted
+…
+A8 PASS  POST /v1/chat/completions  expected refused `lease_revoked` (no call used)  actual refused `lease_revoked`
+8/8 as expected; log: …/docs/ATTACK_LOG.md
+```
+
+Send back the regenerated `docs/ATTACK_LOG.md` (it holds no secret) to replace the plan in the repo. The
+smallest agent, for a lease you shared: `KEYLEASE_LEASE_ID=<n> pnpm --filter @keylease/examples agent "Hi"`.
+
 ## Web app, by hand (PR 7)
 
 After steps 0-3 (contract deployed, proxy on its release, demo API up on the laptop):

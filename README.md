@@ -47,6 +47,7 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 | `cli`                     | `kl`: owner-run testnet CLI (deploy, add key, lease, call, receipts, revoke); see docs/VERIFY.md                                                |
 | `packages/sdk`            | `@keylease/sdk`: `lease({ contract, leaseId }).call(endpoint, body)`, testnet only                                                              |
 | `packages/mcp`            | `@keylease/mcp`: MCP server with `keylease_call` and `keylease_status` for agents                                                               |
+| `examples`                | a small agent, and the prompt-injection attack run that writes docs/ATTACK_LOG.md                                                               |
 | `packages/outlayer`       | OutLayer helpers: keystore envelope, secret lock, wasm publishing, run outcomes                                                                 |
 | `mock-api`                | low-value demo API (OpenAI-shaped chat, echo, a header mirror that trips the tripwire)                                                          |
 | `crates/keylease-reasons` | refusal codes and hints shared by contract, proxy and clients                                                                                   |
@@ -59,7 +60,7 @@ Secrets live in `.env` only (git-ignored); `.env.example` lists names. Never com
 
 [Threat model](docs/THREAT_MODEL.md) · [Decisions](docs/DECISIONS.md) ·
 [Open questions](docs/OPEN_QUESTIONS.md) · [Proposals](docs/PROPOSALS.md) · [Wording](docs/WORDING.md) ·
-[Verify](docs/VERIFY.md)
+[Verify](docs/VERIFY.md) · [Attack log](docs/ATTACK_LOG.md)
 
 Testnet run hosting: the proxy wasm is a release asset of the public repo
 [`metafrogmeme-droid/keylease-wasm`](https://github.com/metafrogmeme-droid/keylease-wasm) (`wasm-<commit>`,
