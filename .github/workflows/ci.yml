@@ -114,6 +114,9 @@ jobs:
       - name: cargo test
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
         run: cargo test --workspace --locked
+      - name: proxy wasm builds reproducibly (two clean builds, same sha256)
+        if: steps.changes.outputs.full == 'true' && steps.changes.outputs.rust == 'true'
+        run: scripts/build-proxy.sh
 
       # Last on purpose: a bad PR description must not skip the code checks above.
       - name: PR title and body lint

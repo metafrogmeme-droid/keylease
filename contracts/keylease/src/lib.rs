@@ -8,8 +8,9 @@
 
 mod check;
 mod events;
-mod validate;
 mod views;
+
+use keylease_rules as validate;
 
 #[cfg(test)]
 mod tests;

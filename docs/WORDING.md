@@ -35,6 +35,16 @@ fails if this table and the code differ.
 | `parent_quota_used`     | A lease above this one has no calls left; ask the agent that shared it with you.              |
 | `lease_not_found`       | No lease has this id; check the lease id you were given.                                      |
 
+## Proxy errors
+
+Besides the refusal codes above, the proxy can answer with these codes (`wasm/keylease-proxy`):
+
+- **bad_input**: the contract and proxy builds disagree on the input; nothing was called.
+- **body_too_large**: the request body is over 64 KB; send a smaller request.
+- **key_unavailable**: the sealed key could not be opened for this run; the key owner should check its lock.
+- **upstream_error**: the API could not be reached or did not answer in time; try again later.
+- **response_too_large**: the API answer is over 256 KB; ask for a smaller answer.
+
 ## Forbidden (copy-lint rules)
 
 | Rule            | What it catches                                                                                            | Why                                                                     |

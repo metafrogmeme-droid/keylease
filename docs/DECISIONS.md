@@ -82,3 +82,18 @@ CI. Nothing in `spike/` is imported by product code; PR 3 starts the real contra
   agents and the UI use first.
 - **Storage.** Every write is charged exactly to the caller (rest refunded); removals refund.
 - **`use_lease` without OutLayer.** PR 3 only checks and uses the call; PR 5 adds `request_execution`.
+
+### E-010 (PR 4) Proxy shape
+
+- **Pure core, thin WASI layer.** All rules are in `wasm/keylease-proxy/src/lib.rs` and tested natively;
+  `main.rs` only reads stdin and env and makes the call through `wasi-http-client` (what OutLayer's own
+  wasip2 examples use).
+- **Shared rules crate.** The contract's input rules moved to `crates/keylease-rules`; the proxy re-checks
+  the endpoint and base URL with the same code.
+- **Withhold, do not scrub, on the key.** An answer that carries the key in any known form is not
+  returned at all (`tripwire`), since a partial scrub could leave another encoding behind. Other bearer-like
+  tokens are redacted and flagged (`redacted: true`).
+- **Limits.** Body ≤ 64 KB, answer ≤ 256 KB (read in chunks, so a larger one is never held), connect
+  timeout 10 s; total run time is OutLayer's `max_execution_seconds` (30 s in our requests).
+- **Input v1** `{v, lease_id, provider, base_url, allowed, endpoint, method, body}`, unknown fields refused.
+  The contract fills `provider`, `base_url` and `allowed`; PR 5 builds it.

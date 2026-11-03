@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "contracts/*"]
+members = ["crates/*", "contracts/*", "wasm/*"]
 # spike/ is a throwaway day-1 experiment with its own workspace (docs/OPEN_QUESTIONS.md Q-001/Q-002).
 exclude = ["spike"]
 
@@ -26,5 +26,6 @@ codegen-units = 1
 opt-level = "z"
 lto = true
 debug = false
+strip = true
 panic = "abort"
 overflow-checks = true
