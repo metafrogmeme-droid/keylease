@@ -33,6 +33,7 @@ export function CreateLease({
   const [calls, setCalls] = useState("100");
   const [hours, setHours] = useState("24");
   const [endpoints, setEndpoints] = useState(defaultEndpoints(provider).join(", "));
+  const [transferable, setTransferable] = useState(false);
   const [state, setState] = useState<
     { kind: "idle" | "working" } | { kind: "error"; text: string } | { kind: "done"; info: ShareInfo }
   >({
@@ -69,6 +70,7 @@ export function CreateLease({
         form.calls,
         expiresAtNs(Date.now(), form.hours),
         form.endpoints,
+        transferable,
       );
       const [out] = await w.send([tx]);
       const leaseId = returnValue(out);
@@ -150,6 +152,16 @@ export function CreateLease({
         <label>
           Endpoints (paths on the key&apos;s base URL)
           <input value={endpoints} onChange={field(setEndpoints)} placeholder="/chat/completions" />
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={transferable}
+            onChange={(e) => {
+              setTransferable(e.target.checked);
+            }}
+          />{" "}
+          Let the holder transfer this lease (Key Pass) to another account
         </label>
         <button type="submit" className="primary">
           Create lease and share

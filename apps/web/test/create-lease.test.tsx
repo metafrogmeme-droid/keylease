@@ -53,6 +53,35 @@ describe("create a lease from a preset and share it", () => {
     expect(screen.getByRole("link", { name: /\/lease\/\?id=7$/ })).toBeTruthy();
   });
 
+  it("transferable is off by default; ticking it lets the holder pass the Key Pass on", async () => {
+    const send = vi.fn<WalletState["send"]>().mockResolvedValue([outcome("8")]);
+    show(send);
+    const box = screen.getByRole("checkbox", { name: /Let the holder transfer this lease/ });
+    expect((box as HTMLInputElement).checked).toBe(false);
+    fireEvent.change(screen.getByLabelText(/Grantee/), { target: { value: "agent.testnet" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create lease and share" }));
+    await waitFor(() => {
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+    const argsOf = (n: number) => {
+      const f = (send.mock.calls[n]?.[0][0]?.actions[0] as { functionCall: { args: Uint8Array } })
+        .functionCall;
+      return JSON.parse(new TextDecoder().decode(f.args)) as Record<string, unknown>;
+    };
+    // Off: the argument is left out, so contracts from before Key Pass accept the call as before.
+    expect(argsOf(0)).not.toHaveProperty("transferable");
+
+    cleanup();
+    show(send);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Let the holder transfer this lease/ }));
+    fireEvent.change(screen.getByLabelText(/Grantee/), { target: { value: "agent.testnet" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create lease and share" }));
+    await waitFor(() => {
+      expect(send).toHaveBeenCalledTimes(2);
+    });
+    expect(argsOf(1)).toMatchObject({ grantee: "agent.testnet", transferable: true });
+  });
+
   it("names the problem before any wallet opens", () => {
     const send = vi.fn<WalletState["send"]>();
     show(send);

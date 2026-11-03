@@ -327,6 +327,13 @@ demo`, Seal and add key, confirm two transactions. Expect the field empty at onc
 this account is revoked…`; every lease row says `revoked`, and any copied near CLI call fails with
    `lease_revoked`.
 
+10. Key Pass (needs a contract deployed from `main` after PR 10): Share with "Let the holder transfer this
+    lease (Key Pass) to another account" ticked, to a second account you hold. Open the lease link with that
+    account's wallet: a "Transfer Key Pass" box. Give a third `.testnet` account, confirm one transaction
+    (1 yoctoNEAR): `✓ Key Pass <n> moved to <account>.`, the Holder line changes, and the box is gone. The
+    second account's near CLI call now fails with `not_lease_holder`. A lease shared without the box ticked
+    says `this Key Pass is not transferable: the key owner did not allow transfers for this lease.`
+
 Time to first lease (brief §4) is measured in CI by `apps/web/e2e/timing.spec.ts`. It drives connect →
 paste key → preset → share against a build with a test-only wallet (`pnpm build:e2e`, never deployed:
 `pnpm check:release` fails any build that contains it, and the Vercel build runs that check). It asserts
