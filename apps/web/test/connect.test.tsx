@@ -16,6 +16,7 @@ function state(over: Partial<WalletState> = {}): WalletState {
     busy: false,
     connect: vi.fn(() => Promise.resolve()),
     disconnect: vi.fn(() => Promise.resolve()),
+    send: vi.fn(() => Promise.resolve([])),
     ...over,
   };
 }
