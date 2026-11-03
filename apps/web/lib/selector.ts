@@ -7,6 +7,9 @@ import type { WebConfig } from "./config.ts";
 import { NEAR_TESTNET_EVM_CHAIN, NETWORK } from "./wallets.ts";
 
 export async function createSelector(cfg: WebConfig): Promise<WalletSelector> {
+  // Timing-test builds only: next.config.ts points @keylease/test-wallet at a throwing stub otherwise.
+  if (process.env["NEXT_PUBLIC_KL_E2E"] === "1")
+    return (await import("@keylease/test-wallet")).createTestSelector() as unknown as WalletSelector;
   const [core, mnw, meteor, hot, intear, eth, wagmi, chains] = await Promise.all([
     import("@near-wallet-selector/core"),
     import("@near-wallet-selector/my-near-wallet"),

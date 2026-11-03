@@ -247,3 +247,9 @@ select {
   text-align: left;
   vertical-align: top;
 }
+
+button.danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #ffffff;
+}

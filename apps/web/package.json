@@ -10,7 +10,10 @@
     "build": "next build && node scripts/csp.ts out",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test e2e/smoke.spec.ts",
+    "e2e:timing": "playwright test e2e/timing.spec.ts",
+    "build:e2e": "NEXT_PUBLIC_KL_E2E=1 pnpm build",
+    "check:release": "node scripts/check-release.ts out"
   },
   "dependencies": {
     "@keylease/mock-api": "workspace:*",

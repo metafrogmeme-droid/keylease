@@ -188,3 +188,18 @@ from crates.io stays as the fallback.
   `scripts/serve.ts` for local use, so local and hosted take the same path. `testnet-api.outlayer.ai`
   left the page's CSP `connect-src`.
 - NEAR AI Cloud base URL `https://cloud-api.near.ai/v1` confirmed by Patrick (`/models` → 200).
+
+### E-018 (PR 8) Leases, Share, panic button, timing test
+
+- Presets as in the brief; Custom opens calls, expiry and endpoints. "Price per call" waits for a contract
+  field (none today). Grantees are `.testnet` accounts until PR 11 (EVM, Solana).
+- Share gives a link, a QR code (drawn as one SVG path from `qrcode-generator`, no HTML strings) and three
+  copy buttons. The brief's curl snippet is a `near` CLI command instead: a plain curl cannot sign the
+  NEAR transaction a leased call is (curl comes with the HTTPS mode, PR 14). SDK and MCP snippets name the
+  packages PR 9 publishes.
+- The panic button signs `revoke_all_owner` with the connected wallet. The brief's phone-QR variant needs
+  WalletConnect, which is off (E-016); it comes with the optional WalletConnect PR.
+- The timing test runs against a build with a test-only wallet. `@keylease/test-wallet` resolves to it
+  only when `NEXT_PUBLIC_KL_E2E=1` (next.config.ts alias); otherwise to a stub that throws.
+  `pnpm check:release` fails any build that contains the test wallet's marker; CI and the Vercel build
+  run it.

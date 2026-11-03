@@ -48,3 +48,6 @@ export const revokeTx = (contractId: string, leaseId: string) =>
 /** Revoke every lease on one key (one O(1) epoch bump). */
 export const revokeAllTx = (contractId: string, keyId: string) =>
   call(contractId, "revoke_all", { key_id: keyId });
+
+/** Panic button: revoke every lease of the signing owner, on every key, in one transaction. */
+export const revokeEverythingTx = (contractId: string) => call(contractId, "revoke_all_owner", {});
