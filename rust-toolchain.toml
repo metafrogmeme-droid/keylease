@@ -1,0 +1,7 @@
+# One toolchain for CI, the operator machine and the build session, so the proxy builds byte-identical
+# everywhere (scripts/build-proxy.sh). Bump deliberately: it changes the proxy hash keys are locked to.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-wasip2", "wasm32-unknown-unknown"]

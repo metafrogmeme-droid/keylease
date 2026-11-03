@@ -97,3 +97,10 @@ CI. Nothing in `spike/` is imported by product code; PR 3 starts the real contra
   timeout 10 s; total run time is OutLayer's `max_execution_seconds` (30 s in our requests).
 - **Input v1** `{v, lease_id, provider, base_url, allowed, endpoint, method, body}`, unknown fields refused.
   The contract fills `provider`, `base_url` and `allowed`; PR 5 builds it.
+
+### E-011 (PR 4b) Toolchain pinned, machine paths remapped
+
+CI (rustc 1.99.1) and the build session (1.97.0) built different proxy bytes for the same commit. Now
+`rust-toolchain.toml` pins 1.99.1 (closes E-006) and `scripts/build-proxy.sh` remaps `$CARGO_HOME` and the
+repo path, so the proxy builds the same sha256 on any x86_64 Linux host. Bumping the toolchain changes the
+proxy hash, so it is a deliberate change that owners must re-lock to.
