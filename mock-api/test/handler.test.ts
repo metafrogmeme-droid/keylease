@@ -36,11 +36,31 @@ describe("auth", () => {
   });
 });
 
+describe("errors use the OpenAI error object", () => {
+  it("has message, type, param and code", async () => {
+    const { body } = await call(req("GET", "/v1/models", undefined, null));
+    expect(body["error"]).toEqual({
+      message: "Send Authorization: Bearer <key>.",
+      type: "invalid_request_error",
+      param: null,
+      code: "unauthorized",
+    });
+  });
+});
+
 describe("routes", () => {
   it("lists one model", async () => {
     const { status, body } = await call(req("GET", "/v1/models"));
     expect(status).toBe(200);
-    expect(body["data"]).toEqual([{ id: "keylease-mock-1", object: "model", owned_by: "keylease-demo" }]);
+    expect(body["object"]).toBe("list");
+    expect(body["data"]).toEqual([
+      {
+        id: "keylease-mock-1",
+        object: "model",
+        created: expect.any(Number) as number,
+        owned_by: "keylease-demo",
+      },
+    ]);
   });
 
   it("answers chat completions in OpenAI shape, echoing the last user message", async () => {
@@ -53,8 +73,18 @@ describe("routes", () => {
       }),
     );
     expect(status).toBe(200);
-    const choices = body["choices"] as { message: { content: string } }[];
-    expect(choices[0]?.message.content).toBe('mock answer: you said "hello"');
+    // Required fields of the OpenAI chat completion object.
+    expect(body).toMatchObject({ object: "chat.completion", model: "keylease-mock-1" });
+    expect(typeof body["id"]).toBe("string");
+    expect(Number.isInteger(body["created"])).toBe(true);
+    expect(body["usage"]).toMatchObject({ prompt_tokens: 5, total_tokens: expect.any(Number) as number });
+    const choices = body["choices"] as {
+      index: number;
+      message: { role: string; content: string };
+      finish_reason: string;
+    }[];
+    expect(choices[0]).toMatchObject({ index: 0, finish_reason: "stop", logprobs: null });
+    expect(choices[0]?.message).toEqual({ role: "assistant", content: 'mock answer: you said "hello"' });
   });
 
   it("echoes a JSON body", async () => {

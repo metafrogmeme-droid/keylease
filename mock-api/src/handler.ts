@@ -10,6 +10,12 @@
  *                              that shows the proxy's tripwire withholding an answer that carries the key
  *
  * Every request needs `Authorization: Bearer <MOCK_API_KEY>`; the key comes from env only.
+ *
+ * Shapes follow the OpenAI API reference, as NEAR AI Cloud and the other OpenAI-compatible providers do:
+ * - chat completion object: https://platform.openai.com/docs/api-reference/chat/object
+ * - create chat completion: https://platform.openai.com/docs/api-reference/chat/create
+ * - list models / model object: https://platform.openai.com/docs/api-reference/models/list
+ * - error object `{ error: { message, type, param, code } }`: https://platform.openai.com/docs/guides/error-codes
  */
 import { timingSafeEqual } from "node:crypto";
 
@@ -28,9 +34,22 @@ function json(status: number, body: unknown): Response {
   });
 }
 
+const ERROR_TYPE: Record<number, string> = {
+  400: "invalid_request_error",
+  401: "invalid_request_error",
+  404: "invalid_request_error",
+  413: "invalid_request_error",
+  500: "server_error",
+};
+
 function error(status: number, code: string, message: string): Response {
-  return json(status, { error: { code, message } });
+  return json(status, {
+    error: { message, type: ERROR_TYPE[status] ?? "invalid_request_error", param: null, code },
+  });
 }
+
+/** Fixed creation time of the mock model (OpenAI `created`, unix seconds). */
+const MODEL_CREATED = 1_762_128_000;
 
 /** Headers as a plain object (lower-case names). */
 export function headerObject(headers: Headers): Record<string, string> {
@@ -77,7 +96,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
       case "GET /v1/models":
         return json(200, {
           object: "list",
-          data: [{ id: MODEL, object: "model", owned_by: "keylease-demo" }],
+          data: [{ id: MODEL, object: "model", created: MODEL_CREATED, owned_by: "keylease-demo" }],
         });
       case "POST /v1/chat/completions": {
         const said = lastUserMessage(await readJson(req)).slice(0, 500);
@@ -85,8 +104,11 @@ export async function handle(req: Request, env: Env): Promise<Response> {
         return json(200, {
           id: "chatcmpl-mock",
           object: "chat.completion",
+          created: Math.floor(Date.now() / 1000),
           model: MODEL,
-          choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+          choices: [
+            { index: 0, message: { role: "assistant", content }, logprobs: null, finish_reason: "stop" },
+          ],
           usage: {
             prompt_tokens: said.length,
             completion_tokens: content.length,

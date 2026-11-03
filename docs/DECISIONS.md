@@ -137,3 +137,8 @@ from crates.io stays as the fallback.
   not change its code. It answers with canned text and echoes only, behind a bearer key from env.
   `GET /debug/headers` mirrors request headers on purpose: a lease that includes it shows the proxy
   withholding an answer that carries the key, and the on-chain `tripwire` receipt (T1).
+- Both test doubles follow their real specs, linked in their sources. `mock-api` follows the OpenAI API
+  reference (chat completion and model objects, error object), as NEAR AI Cloud does.
+  `contracts/mock-outlayer` takes OutLayer's exact `request_execution` types and refuses what OutLayer
+  refuses at commit aaf60a2 (hash and URL shape, profile shape, limits caps, deposit ≥ estimate). Unlike
+  OutLayer, it also refuses unknown fields, so a typo in our call fails the sandbox tests.
