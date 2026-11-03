@@ -20,13 +20,179 @@ in by the PR named.
 | The proxy build is reproducible                                     | `scripts/build-proxy.sh` (pinned rustc 1.99.1, paths remapped)                                                                                                                                                              | two clean builds, one `sha256 …` line, the same on CI and any x86_64 Linux host |
 | The proxy refuses an endpoint outside the lease without calling out | `echo '{"v":1,"lease_id":"1","provider":"Custom","base_url":"https://api.example","allowed":["/a"],"endpoint":"/b","method":"GET"}' \| KL_API_KEY=x wasmtime run -S http --env KL_API_KEY target/proxy/keylease-proxy.wasm` | `"error":"endpoint_not_in_lease"`                                               |
 
-Across machines, the hash that key locks name is the one from OutLayer's pinned compiler image
-(`scripts/build_github_wasm.sh --dir wasm/keylease-proxy --target wasm32-wasip2 --twice` in the OutLayer
-repo). It is published in the README from PR 6.
+With a `WasmUrl` source OutLayer runs exactly the bytes we publish (it refuses bytes whose sha256 differs
+from the source's hash), so a key's lock names the sha256 that `scripts/build-proxy.sh` prints. The
+toolchain is pinned and paths are remapped, so anyone gets the same bytes from the same commit; CI prints it
+in the step "proxy wasm builds reproducibly". The deployed contract shows the hash it uses:
+`kl status` / the `get_config` view (step 3 below).
 
-## Receipts on testnet (PR 6, planned)
+## Testnet, end to end (PR 6)
 
-From a receipt's transaction link: lease id, call number, input/output hashes, OutLayer execution id.
+Run on the operator computer, NEAR **testnet** only, from a checkout of `main`. Every key stays in env:
+never paste it into git, chat or a screenshot. Lines in `<angle brackets>` vary per run; everything else
+is printed exactly as shown. `kl` exits 0 when done, 2 when a lease rule refuses, 1 on an error.
+
+**0. Tools and build** (once)
+
+```sh
+pnpm install
+scripts/install-cargo-near.sh          # cargo-near-near 0.22.0
+scripts/build-contracts.sh             # <sha256>  …/keylease_contract.wasm (and mock_outlayer.wasm)
+scripts/build-proxy.sh
+alias kl="node cli/src/main.ts"
+```
+
+Expect from `build-proxy.sh` (same as CI for the same commit):
+
+```text
+rustc 1.99.1
+keylease-proxy.wasm <bytes> bytes
+sha256 <proxy sha256>
+```
+
+**1. Account** (a fresh `.testnet` account with ~10 NEAR from the faucet)
+
+```sh
+export NEAR_ACCOUNT_ID=<you>.testnet
+read -rs NEAR_PRIVATE_KEY && export NEAR_PRIVATE_KEY     # ed25519:…, not echoed
+```
+
+**2. Demo API.** Host `mock-api` on any public https host (`MOCK_API_KEY=… node mock-api/src/serve.ts`
+behind TLS, or a Vercel/Workers deploy of `mock-api/src/handler.ts`). Keep the same key in this shell:
+
+```sh
+read -rs MOCK_API_KEY && export MOCK_API_KEY
+curl -s -H "authorization: Bearer $MOCK_API_KEY" https://<mock host>/v1/models
+```
+
+Expect `{"object":"list","data":[{"id":"keylease-mock-1",…}]}`.
+
+**3. Deploy** contract `keylease.<you>.testnet` and the proxy. FastFS by default; if FastFS is down, host
+`target/proxy/keylease-proxy.wasm` on a public https URL and add `--proxy-url https://<host>/keylease-proxy.wasm`
+(the CLI checks it the way OutLayer's worker fetches it, sha256 included, before anything goes on chain).
+
+```sh
+kl deploy
+```
+
+```text
+contract   keylease.<you>.testnet
+code       sha256 <contract sha256, as build-contracts.sh printed>
+proxy      sha256 <proxy sha256, as build-proxy.sh printed>
+proxy url  <FastFS or your URL>
+admin      <you>.testnet
+tx         https://testnet.nearblocks.io/txns/<hash>
+```
+
+Running it again prints `contract   keylease.<you>.testnet (already deployed)` and the same proxy lines.
+
+**4. Seal the demo key** (encrypted on this machine to OutLayer's keystore, locked to the contract and the
+proxy build; the key is read from env and never printed)
+
+```sh
+kl add-key --key-env MOCK_API_KEY --base-url https://<mock host> --provider OpenAiCompatible --label demo
+```
+
+```text
+sealed     profile main under <you>.testnet, lock Predecessor[keylease.<you>.testnet] AND WasmHash[<first 12 hex>…]
+key        <key id, 0 on a fresh contract>
+tx         https://testnet.nearblocks.io/txns/<hash>
+```
+
+**5. Lease** three calls to yourself for one hour, on the chat endpoint and the tripwire demo endpoint
+
+```sh
+kl lease --key 0 --grantee $NEAR_ACCOUNT_ID --calls 3 --for 1h \
+  --endpoint /v1/chat/completions --endpoint /debug/headers
+```
+
+```text
+lease      <lease id, 0 on a fresh contract>
+expires    <ISO time one hour from now>
+tx         https://testnet.nearblocks.io/txns/<hash>
+```
+
+**6. A leased call** goes through the proxy in the TEE and comes back with a receipt
+
+```sh
+kl call --lease 0 --endpoint /v1/chat/completions \
+  --body '{"model":"keylease-mock-1","messages":[{"role":"user","content":"hello"}]}'
+```
+
+```text
+tx         https://testnet.nearblocks.io/txns/<hash>
+call       1 on lease 0
+outcome    ok http 200
+answer     {"v":1,"ok":true,"status":200,"body":"{\"id\":\"chatcmpl-mock\",\"object\":\"chat.completion\",<rest, cut at 300 characters>
+input      sha256 <hex>
+output     sha256 <hex>
+```
+
+**7. A refused call**: an endpoint that is not in the lease never reaches OutLayer (exit 2)
+
+```sh
+kl call --lease 0 --endpoint /v1/models --method GET
+```
+
+```text
+tx         https://testnet.nearblocks.io/txns/<hash>
+refused    endpoint_not_in_lease: This endpoint is not in the lease; call one of the listed endpoints or ask for a wider lease.
+```
+
+**8. The tripwire**: `/debug/headers` answers with the request headers, key included; the proxy withholds the
+answer and the contract records a `tripwire` receipt and event (exit 2)
+
+```sh
+kl call --lease 0 --endpoint /debug/headers --method GET
+```
+
+```text
+tx         https://testnet.nearblocks.io/txns/<hash>
+call       2 on lease 0
+outcome    tripwire (tripwire)
+answer     {"v":1,"ok":false,"error":"tripwire","hint":"The call looked like an attempt to read the key, so it was stopped and recorded on chain."}
+input      sha256 <hex>
+output     sha256 <hex>
+```
+
+On nearblocks, the transaction's logs show `EVENT_JSON:{"standard":"keylease",…,"event":"tripwire",…}`.
+
+**9. Receipts** (a view: no key needed)
+
+```sh
+kl receipts --lease 0
+```
+
+```text
+call 1     ok /v1/chat/completions by <you>.testnet
+call 2     tripwire tripwire /debug/headers by <you>.testnet
+```
+
+**10. Revoke, then the next call is refused** (exit 2)
+
+```sh
+kl revoke --lease 0
+kl call --lease 0 --endpoint /v1/chat/completions --body '{"messages":[]}'
+kl status --lease 0
+```
+
+```text
+revoked    lease 0
+tx         https://testnet.nearblocks.io/txns/<hash>
+tx         https://testnet.nearblocks.io/txns/<hash>
+refused    lease_revoked: The key owner revoked this lease; ask them for a new one.
+lease      0 on key 0, revoked
+grantee    <you>.testnet
+calls      2 used, 1 left
+expires    <ISO time>
+endpoints  /v1/chat/completions /debug/headers
+```
+
+`kl revoke --everything` is the panic button (every lease of the account in one transaction);
+`kl revoke --key 0` revokes every lease on one key.
+
+Costs: each `kl call` attaches 0.025 NEAR. OutLayer refunds the unused compute to the caller; 0.005 NEAR
+stays with the contract for the receipt. A refused call costs only gas.
 
 ## Attestation (PR 12, planned)
 

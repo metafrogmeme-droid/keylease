@@ -4,3 +4,4 @@ packages:
   - "tools/*"
   - "spike/runner"
   - "mock-api"
+  - "cli"
