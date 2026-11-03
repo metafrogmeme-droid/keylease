@@ -1,0 +1,15 @@
+{
+  "name": "@keylease/outlayer",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "OutLayer helpers for KeyLease: keystore envelope (ECIES), the secret lock, FastFS or self-hosted wasm publishing, run outcomes.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

@@ -29,11 +29,18 @@ import {
   teraToGas,
   type KeyPairString,
 } from "near-api-js";
-import { leaseLock, wasmHash, type Condition } from "./conditions.ts";
-import { seal } from "./ecies.ts";
-import { FASTFS_METHOD, fastfsPayload, fastfsUrl } from "./fastfs.ts";
-import { checkHosted, flag } from "./hosting.ts";
-import { completion } from "./outcome.ts";
+import {
+  leaseLock,
+  wasmHash,
+  type Condition,
+  seal,
+  FASTFS_METHOD,
+  fastfsPayload,
+  fastfsUrl,
+  checkHosted,
+  flag,
+  completion,
+} from "@keylease/outlayer";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const spikeDir = join(here, "../..");
