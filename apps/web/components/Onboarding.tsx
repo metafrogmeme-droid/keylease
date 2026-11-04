@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { config } from "../lib/config.ts";
-import { walletOptions } from "../lib/wallets.ts";
 import { AddKey } from "./AddKey.tsx";
 import { ConnectWallet } from "./ConnectWallet.tsx";
 import { KeyList } from "./KeyList.tsx";
@@ -9,8 +8,6 @@ import { LeaseList } from "./LeaseList.tsx";
 import { PanicButton } from "./PanicButton.tsx";
 import { OnboardingStrip } from "./OnboardingStrip.tsx";
 import { useWallet } from "./WalletProvider.tsx";
-
-const OPTIONS = walletOptions(config);
 
 export function Onboarding() {
   const { accountId } = useWallet();
@@ -21,7 +18,7 @@ export function Onboarding() {
       <OnboardingStrip
         progress={{ connected: accountId !== null, hasKey: added > 0, hasLease: leased > 0 }}
       />
-      <ConnectWallet options={OPTIONS} />
+      <ConnectWallet reownProjectId={config.reownProjectId} />
       {accountId !== null && (
         <>
           <AddKey

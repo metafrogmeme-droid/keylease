@@ -3,9 +3,11 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConnectWallet } from "../components/ConnectWallet.tsx";
 import { WalletContext, connectError, type WalletState } from "../components/WalletProvider.tsx";
-import { walletOptions } from "../lib/wallets.ts";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 function state(over: Partial<WalletState> = {}): WalletState {
   return {
@@ -24,7 +26,7 @@ function state(over: Partial<WalletState> = {}): WalletState {
 function show(s: WalletState, reown: string | null = null) {
   render(
     <WalletContext value={s}>
-      <ConnectWallet options={walletOptions({ reownProjectId: reown })} />
+      <ConnectWallet reownProjectId={reown} />
     </WalletContext>,
   );
 }
@@ -55,6 +57,32 @@ describe("wallet picker", () => {
     show(state(), "0123456789abcdef0123456789abcdef");
     fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
     expect(screen.getByRole<HTMLButtonElement>("button", { name: /^WalletConnect/ }).disabled).toBe(false);
+  });
+
+  it("in MetaMask's own browser (window.ethereum): no WalletConnect, MetaMask first and recommended", async () => {
+    vi.stubGlobal("ethereum", { isMetaMask: true, request: vi.fn() });
+    const s = state();
+    show(s, "0123456789abcdef0123456789abcdef");
+    fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
+    const list = screen.getByRole("list", { name: "Wallets" });
+    const buttons = await within(list).findAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).not.toContain("WalletConnect");
+    expect(within(list).queryByRole("button", { name: /^WalletConnect/ })).toBeNull();
+    const mm = within(list).getByRole<HTMLButtonElement>("button", { name: /^MetaMask/ });
+    expect(buttons[0]).toBe(mm);
+    expect(mm.disabled).toBe(false);
+    expect(mm.textContent).toMatch(/recommended/);
+    fireEvent.click(mm);
+    expect(s.connect).toHaveBeenCalledWith("ethereum-wallets");
+  });
+
+  it("without MetaMask in the browser: MetaMask greyed out and pointing at its app browser or WalletConnect", () => {
+    show(state());
+    fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
+    const mm = screen.getByRole<HTMLButtonElement>("button", { name: /^MetaMask/ });
+    expect(mm.disabled).toBe(true);
+    expect(mm.getAttribute("aria-describedby")).toBeTruthy();
+    expect(screen.getByText("Open in MetaMask app browser, or use WalletConnect")).toBeTruthy();
   });
 
   it("keeps every wallet disabled until the wallet code has loaded", () => {

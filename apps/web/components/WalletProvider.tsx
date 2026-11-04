@@ -46,8 +46,29 @@ export const WalletContext = createContext<WalletState>({
 
 export const useWallet = () => useContext(WalletContext);
 
+/** How long a wallet gets to answer a sign-in before the app gives up and lets you try again. */
+export const SIGN_IN_TIMEOUT_MS = 60_000;
+export const SIGN_IN_TIMEOUT_TEXT =
+  "The wallet did not answer within 60 seconds. Close its window or app and try again.";
+
+class SignInTimeout extends Error {}
+
+/** `p`, or a SignInTimeout after `ms`. The wallet's own promise is left to settle on its own. */
+export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new SignInTimeout(SIGN_IN_TIMEOUT_TEXT));
+    }, ms);
+  });
+  return Promise.race([p, late]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
 /** Plain-language error for a failed connect; wallet messages can be long or technical. */
 export function connectError(e: unknown): string {
+  if (e instanceof SignInTimeout) return SIGN_IN_TIMEOUT_TEXT;
   const text = e instanceof Error ? e.message : String(e);
   if (/reject|cancel|closed/i.test(text)) return "The wallet closed or the request was declined. Try again.";
   if (/not (installed|detected|found)|no injected/i.test(text) || /ethereum/i.test(text))
@@ -55,7 +76,14 @@ export function connectError(e: unknown): string {
   return `The wallet could not connect: ${text.slice(0, 160)}`;
 }
 
-export function WalletProvider({ children }: { readonly children: ReactNode }) {
+export function WalletProvider({
+  children,
+  signInTimeoutMs = SIGN_IN_TIMEOUT_MS,
+}: {
+  readonly children: ReactNode;
+  /** Tests only; the app uses SIGN_IN_TIMEOUT_MS. */
+  readonly signInTimeoutMs?: number;
+}) {
   const [selector, setSelector] = useState<WalletSelector | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | null>(null);
@@ -91,14 +119,17 @@ export function WalletProvider({ children }: { readonly children: ReactNode }) {
       setBusy(true);
       try {
         const wallet = await selector.wallet(id);
-        await wallet.signIn({ contractId: config.contractId, methodNames: [], accounts: [] });
+        await withTimeout(
+          wallet.signIn({ contractId: config.contractId, methodNames: [], accounts: [] }),
+          signInTimeoutMs,
+        );
       } catch (e) {
         setError(connectError(e));
       } finally {
         setBusy(false);
       }
     },
-    [selector],
+    [selector, signInTimeoutMs],
   );
 
   const disconnect = useCallback(async () => {

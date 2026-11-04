@@ -4,12 +4,16 @@
  */
 import type { WalletModuleFactory, WalletSelector } from "@near-wallet-selector/core";
 import type { WebConfig } from "./config.ts";
+import { installRpcRetry, RPC_URLS } from "./near-rpc.ts";
 import { NEAR_TESTNET_EVM_CHAIN, NETWORK } from "./wallets.ts";
 
 export async function createSelector(cfg: WebConfig): Promise<WalletSelector> {
   // Timing-test builds only: next.config.ts points @keylease/test-wallet at a throwing stub otherwise.
   if (process.env["NEXT_PUBLIC_KL_E2E"] === "1")
     return (await import("@keylease/test-wallet")).createTestSelector() as unknown as WalletSelector;
+  // Before any wallet code loads: their own read-only RPC queries (MetaMask's view_access_key) get one
+  // retry on the fallback RPC after a transient failure.
+  installRpcRetry(window);
   const [core, mnw, meteor, hot, intear, eth, wagmi, chains] = await Promise.all([
     import("@near-wallet-selector/core"),
     import("@near-wallet-selector/my-near-wallet"),
@@ -54,5 +58,6 @@ export async function createSelector(cfg: WebConfig): Promise<WalletSelector> {
       }),
     );
   }
-  return core.setupWalletSelector({ network: NETWORK, modules });
+  // The selector's own provider fails over between the two testnet RPCs.
+  return core.setupWalletSelector({ network: NETWORK, modules, fallbackRpcUrls: [...RPC_URLS] });
 }
