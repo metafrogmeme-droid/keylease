@@ -4,6 +4,7 @@ import { TestnetBanner } from "../components/TestnetBanner.tsx";
 import { WalletProvider } from "../components/WalletProvider.tsx";
 import { config } from "../lib/config.ts";
 import "./globals.css";
+import "./ethereum-wallets.css";
 
 export const metadata: Metadata = {
   title: "KeyLease (testnet)",

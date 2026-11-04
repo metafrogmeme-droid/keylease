@@ -53,12 +53,38 @@ export const SIGN_IN_TIMEOUT_TEXT =
 
 class SignInTimeout extends Error {}
 
+/**
+ * How long a wallet gets to finish sending (every confirm, plus waiting for the chain) before the app
+ * stops waiting, closes the wallet's own confirm box and says so, instead of a step that never ends.
+ */
+export const SEND_TIMEOUT_MS = 300_000;
+export const SEND_TIMEOUT_TEXT =
+  "The wallet did not finish within 5 minutes, so the app stopped waiting. Check the wallet's own list for anything it already sent, then try again.";
+
+/** Thrown by `send` when the wallet does not finish within SEND_TIMEOUT_MS. */
+export class SendTimeout extends Error {}
+
+/**
+ * Close the MetaMask (ethereum-wallets) confirm box, if one is open, through its own Cancel button so the
+ * library stops its flow too.
+ */
+export function closeWalletModal(doc: Document = document): void {
+  for (const b of doc.querySelectorAll<HTMLButtonElement>(
+    ".ethereum-wallet-modal .ethereum-wallet-btn-cancel",
+  ))
+    b.click();
+}
+
 /** `p`, or a SignInTimeout after `ms`. The wallet's own promise is left to settle on its own. */
-export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+export function withTimeout<T>(
+  p: Promise<T>,
+  ms: number,
+  timeout: () => Error = () => new SignInTimeout(SIGN_IN_TIMEOUT_TEXT),
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      reject(new SignInTimeout(SIGN_IN_TIMEOUT_TEXT));
+      reject(timeout());
     }, ms);
   });
   return Promise.race([p, late]).finally(() => {
@@ -79,10 +105,13 @@ export function connectError(e: unknown): string {
 export function WalletProvider({
   children,
   signInTimeoutMs = SIGN_IN_TIMEOUT_MS,
+  sendTimeoutMs = SEND_TIMEOUT_MS,
 }: {
   readonly children: ReactNode;
   /** Tests only; the app uses SIGN_IN_TIMEOUT_MS. */
   readonly signInTimeoutMs?: number;
+  /** Tests only; the app uses SEND_TIMEOUT_MS. */
+  readonly sendTimeoutMs?: number;
 }) {
   const [selector, setSelector] = useState<WalletSelector | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -145,10 +174,24 @@ export function WalletProvider({
   const send = useCallback(
     async (txs: readonly Tx[]) => {
       if (!selector) throw new Error("Connect a wallet first.");
-      const out = await (await selector.wallet()).signAndSendTransactions({ transactions: [...txs] });
-      return out ?? [];
+      const wallet = await selector.wallet();
+      // Outcomes, or nothing when the wallet redirects away.
+      const sending = wallet.signAndSendTransactions({ transactions: [...txs] }) as Promise<
+        unknown[] | undefined
+      >;
+      try {
+        const out = await withTimeout(sending, sendTimeoutMs, () => new SendTimeout(SEND_TIMEOUT_TEXT));
+        return out ?? [];
+      } catch (e) {
+        if (e instanceof SendTimeout) {
+          // The library rejects once its box is cancelled; that late rejection is expected.
+          sending.catch(() => undefined);
+          closeWalletModal();
+        }
+        throw e;
+      }
     },
-    [selector],
+    [selector, sendTimeoutMs],
   );
 
   const value = useMemo<WalletState>(
