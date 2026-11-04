@@ -53,17 +53,33 @@ function isExecuteResponse(v: unknown): v is { success: boolean; success_value?:
   );
 }
 
+/** The last non-empty `SuccessValue` the contract itself returned in this transaction, if any. */
+function contractValue(outcome: unknown, contractId: string): string | undefined {
+  const receipts = (outcome as { receipts_outcome?: unknown } | undefined)?.receipts_outcome;
+  if (!Array.isArray(receipts)) return undefined;
+  for (const r of [...(receipts as unknown[])].reverse()) {
+    const o = (r as { outcome?: { executor_id?: unknown; status?: { SuccessValue?: unknown } } }).outcome;
+    const v = o?.status?.SuccessValue;
+    if (o?.executor_id === contractId && typeof v === "string" && v !== "") return v;
+  }
+  return undefined;
+}
+
 /**
  * The decoded return value of a final outcome (`SuccessValue`), or null. For an EVM wallet the
- * wallet contract's `ExecuteResponse` is unwrapped; a failed inner call throws its error.
+ * wallet contract's `ExecuteResponse` is unwrapped; a failed inner call throws its error. That
+ * wrapper drops values over 16 KiB ("Result truncated"), so with `contractId` the value is read
+ * from the contract's own receipt in the same transaction instead.
  */
-export function returnValue(outcome: unknown): unknown {
+export function returnValue(outcome: unknown, contractId?: string): unknown {
   const v = decodeB64Json(
     (outcome as { status?: { SuccessValue?: string } } | undefined)?.status?.SuccessValue,
   );
   if (!isExecuteResponse(v)) return v;
   if (!v.success)
     throw new Error(typeof v.error === "string" ? v.error : "The wallet contract reported a failed call.");
+  const own = contractId === undefined ? undefined : contractValue(outcome, contractId);
+  if (own !== undefined) return decodeB64Json(own);
   const bytes = v.success_value;
   if (!Array.isArray(bytes) || bytes.length === 0) return null;
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(bytes as number[])));

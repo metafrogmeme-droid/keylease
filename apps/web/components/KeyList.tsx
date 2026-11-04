@@ -56,7 +56,7 @@ export function KeyList({
       try {
         set({ kind: "working", step: "1/2 Confirm a one-call test lease to yourself…" });
         const [leaseOut] = await w.send([testLeaseTx(config.contractId, key.key_id, owner, Date.now())]);
-        const leaseId = returnValue(leaseOut);
+        const leaseId = returnValue(leaseOut, config.contractId);
         if (typeof leaseId !== "string") {
           set({
             kind: "done",
@@ -73,7 +73,7 @@ export function KeyList({
         }
         set({ kind: "working", step: "2/2 Confirm the test call (0.025 NEAR, unused compute refunded)…" });
         const [callOut] = await w.send([testCallTx(config.contractId, leaseId)]);
-        set({ kind: "done", verdict: verdict(returnValue(callOut)), tx: txHash(callOut) });
+        set({ kind: "done", verdict: verdict(returnValue(callOut, config.contractId)), tx: txHash(callOut) });
       } catch (e) {
         set({ kind: "done", tx: null, verdict: { ok: false, text: failureText(e) } });
       }
