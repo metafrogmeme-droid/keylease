@@ -41,6 +41,25 @@ await l.keyPass(); // { token_id, owner_id, metadata }
 - `transfer` attaches exactly 1 yoctoNEAR. It works only when the key owner made the lease transferable;
   otherwise it throws `KeyLeaseError` `transfer_refused` with the contract's sentence. Sub-leases are never
   transferable.
+  A lease held by an EVM address or a Solana key (E-021): the holder signs each call, a relayer sends it.
+
+```ts
+import { evmKeySigner, lease, solanaKeySigner } from "@keylease/sdk";
+
+// The relayer is KEYLEASE_RELAYER_ACCOUNT_ID + KEYLEASE_RELAYER_PRIVATE_KEY (a throwaway testnet account).
+const signer = evmKeySigner(process.env.AGENT_EVM_KEY!); // or solanaKeySigner(base58 secret), or a wallet
+const l = lease({ contract: "keylease.<owner>.testnet", leaseId: "7", signer });
+await l.call("/chat/completions", { messages: [{ role: "user", content: "Hi" }] });
+```
+
+- Each call reads the lease (free), signs the text the contract's `signed_call_message` view returns (the
+  SDK never builds it), with nonce `last_nonce + 1` and a valid-until of now + 5 minutes
+  (`signatureTtlMs`, 1 s to 1 h), then sends `use_lease_signed` from the relayer.
+- A key that does not hold the lease is refused `not_lease_holder` before anything is signed or sent; the
+  holder id comes from the contract (`evm_holder_account` takes any letter case, `solana_holder_account`
+  base58). A nonce another call took first comes back `nonce_used`, a late signature `signature_expired`.
+- A wallet plugs in as a `HolderSigner` (`{ kind: "evm" | "solana", address, signMessage(text) }`). With a
+  signer, `subLease` and `transfer` are refused: they need the holder's own NEAR account.
 - Each call attaches 0.025 NEAR; OutLayer refunds unused compute to the caller.
 - A refused call throws `KeyLeaseError` with `code` and `hint` from docs/WORDING.md (for example
   `endpoint_not_in_lease`, `quota_used`, `lease_revoked`, `tripwire`) and a `receipt` with the transaction link.

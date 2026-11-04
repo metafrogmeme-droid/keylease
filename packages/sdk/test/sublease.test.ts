@@ -25,6 +25,7 @@ function parent(over: Partial<LeaseStatus> = {}): LeaseStatus {
     parent: null,
     depth: 0,
     issuer: "alice.testnet",
+    last_nonce: "0",
     ...over,
   };
 }
