@@ -352,7 +352,14 @@ this account is revoked…`; every lease row says `revoked`, and any copied near
     the real-wallet run below sealed with `0x020a…925f` (`store_secrets` on `outlayer.testnet`), and its Test
     key call was OutLayer request 8723, outcome `ok`, HTTP 200.
 
-    _Not run yet._
+    _Run 2026-11-04_ (Patrick, MetaMask mobile), **partial: the grantee path is proven, the API answered 400**:
+
+    | Step                                                                   | Result                                                                                                                                                                                                                                                 |
+    | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+    | Lease 7 on `/messages` to `0x0acca2862903d0415639316574a5286d42854ea8` | holder signed in with MetaMask; the login added the function-call access key on `keylease.keylease-spike-3298edc1.testnet` (the `create_lease` tx was not recorded)                                                                                    |
+    | Make a test call (PR #48)                                              | [`use_lease` tx](https://testnet.nearblocks.io/txns/9D3DCLm1RVEt3e4HfznddvCCoXwkJEWbYQ44j5tQbcN1): `call_authorized`, OutLayer request 8818 with `secrets_ref` account `0x020a…925f` (the key owner), execution success, `call_completed` outcome `ok` |
+    | API answer                                                             | HTTP 400 `invalid_request_error` "model: Field required": the test prompt had no `model` (fixed in the PR after #48: Anthropic-compatible keys get `claude-haiku-5-5`, editable)                                                                       |
+    | Rerun after that fix                                                   | _not run yet_: record the `use_lease` tx, the OutLayer request id and the HTTP status                                                                                                                                                                  |
 
 Time to first lease (brief §4) is measured in CI by `apps/web/e2e/timing.spec.ts`. It drives connect →
 paste key → preset → share against a build with a test-only wallet (`pnpm build:e2e`, never deployed:

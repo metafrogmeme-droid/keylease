@@ -94,6 +94,40 @@ describe("Test key", () => {
       text: "The key works: the API answered HTTP 200 through the proxy.",
     });
     expect(verdict({ ok: true, status: 401 }).text).toMatch(/refused the key/);
+    // A 4xx is the API saying no to the request: the proxy and the lease worked.
+    const anthropic400 = {
+      ok: true,
+      status: 400,
+      body: JSON.stringify({
+        type: "error",
+        error: { type: "invalid_request_error", message: "model: Field required" },
+      }),
+      body_encoding: "utf8",
+    };
+    expect(verdict(anthropic400)).toEqual({
+      ok: false,
+      apiRejected: true,
+      text: "The proxy works; the API rejected the request: model: Field required",
+    });
+    expect(
+      verdict({
+        ok: true,
+        status: 400,
+        body: '{"type":"invalid_request_error","message":"model: Field required"}',
+        body_encoding: "utf8",
+      }).text,
+    ).toBe("The proxy works; the API rejected the request: model: Field required");
+    expect(verdict({ ok: true, status: 422, body: "not json", body_encoding: "utf8" }).text).toBe(
+      "The proxy works; the API rejected the request (HTTP 422).",
+    );
+    expect(
+      verdict({ ok: true, status: 404, body: '{"error":"No route POST /messages."}', body_encoding: "utf8" })
+        .text,
+    ).toBe("The proxy works; the API rejected the request: No route POST /messages.");
+    expect(verdict({ ok: true, status: 403 }).apiRejected).toBeUndefined();
+    expect(verdict({ ok: true, status: 503 }).text).toBe(
+      "The proxy reached the API, which answered HTTP 503.",
+    );
     expect(verdict({ ok: false, error: "key_unavailable" }).text).toBe(
       "key_unavailable: the sealed key could not be opened for this run; the key owner should check its lock.",
     );

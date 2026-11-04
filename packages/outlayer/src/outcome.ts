@@ -18,8 +18,9 @@ export function completion(logs: readonly string[]): Completed | undefined {
 
 /**
  * OutLayer's request id for a run, from its NEP-297 events (`standard: "near-offshore"`,
- * `execution_requested` or `execution_completed`), or null when no such event names one. Field names
- * tried in order: `request_id`, `requestId`, `id`.
+ * `execution_requested` or `execution_completed`), or null when no such event names one. outlayer.testnet
+ * logs it inside `data[0].request_data`, a JSON string (`{"request_id":8818,…}`); a plain `request_id`,
+ * `requestId` or `id` on the data is read too.
  */
 export function outlayerRequestId(logs: readonly string[]): string | null {
   for (const log of logs) {
@@ -32,7 +33,15 @@ export function outlayerRequestId(logs: readonly string[]): string | null {
     }
     if (ev.standard !== "near-offshore") continue;
     if (ev.event !== "execution_requested" && ev.event !== "execution_completed") continue;
-    const d = (Array.isArray(ev.data) ? ev.data[0] : ev.data) as Record<string, unknown> | undefined;
+    let d = (Array.isArray(ev.data) ? ev.data[0] : ev.data) as Record<string, unknown> | undefined;
+    const inner = d?.["request_data"];
+    if (typeof inner === "string") {
+      try {
+        d = JSON.parse(inner) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+    }
     const id = d?.["request_id"] ?? d?.["requestId"] ?? d?.["id"];
     if (typeof id === "number" || (typeof id === "string" && id !== "")) return String(id);
   }

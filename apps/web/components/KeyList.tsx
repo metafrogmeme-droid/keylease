@@ -3,7 +3,15 @@ import { useCallback, useEffect, useState } from "react";
 import { config } from "../lib/config.ts";
 import { revokeAllTx } from "../lib/receipts.ts";
 import { view } from "../lib/near-rpc.ts";
-import { failureText, returnValue, testCallTx, testLeaseTx, verdict, type Verdict } from "../lib/testkey.ts";
+import {
+  failureText,
+  returnValue,
+  testCallTx,
+  testLeaseTx,
+  verdict,
+  verdictMark,
+  type Verdict,
+} from "../lib/testkey.ts";
 import { CreateLease } from "./CreateLease.tsx";
 import { txHash, useWallet } from "./WalletProvider.tsx";
 
@@ -150,9 +158,20 @@ export function KeyList({
                 >
                   Revoke all for this key
                 </button>
-                <p role="status" className={t?.kind === "done" ? (t.verdict.ok ? "ok" : "bad") : "hint"}>
+                <p
+                  role="status"
+                  className={
+                    t?.kind === "done"
+                      ? t.verdict.ok
+                        ? "ok"
+                        : t.verdict.apiRejected
+                          ? "hint"
+                          : "bad"
+                      : "hint"
+                  }
+                >
                   {t?.kind === "working" && t.step}
-                  {t?.kind === "done" && `${t.verdict.ok ? "✓" : "✗"} ${t.verdict.text}`}
+                  {t?.kind === "done" && `${verdictMark(t.verdict)} ${t.verdict.text}`}
                   {t?.kind === "done" && t.tx && (
                     <>
                       {" "}
