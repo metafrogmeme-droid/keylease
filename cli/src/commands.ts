@@ -14,6 +14,7 @@ import {
   secretsJson,
   storeSecretsArgs,
 } from "@keylease/outlayer";
+import { parseTestnetAccount } from "@keylease/sdk/account";
 import { durationNs, type Settings } from "./env.ts";
 import { callNumber, line, refusal, short, txLink } from "./format.ts";
 import { callAndWait, connect, exists, view, viewer, type Chain } from "./near.ts";
@@ -37,6 +38,13 @@ export function one(o: Opts, name: string, fallback?: string): string {
   }
   if (typeof v !== "string" || v === "") throw new Error(`--${name} is required`);
   return v;
+}
+
+/** `--grantee`, checked and normalised by the shared rule (name.testnet, 0x + 40 hex, 64 hex). */
+export function granteeOf(o: Opts): string {
+  const r = parseTestnetAccount(str(o, "grantee"));
+  if ("error" in r) throw new Error(`--grantee: ${r.error}`);
+  return r.id;
 }
 
 function contractOf(s: Settings): string {
@@ -193,7 +201,7 @@ export async function lease(s: Settings, o: Opts): Promise<number> {
     "create_lease",
     {
       key_id: str(o, "key"),
-      grantee: str(o, "grantee"),
+      grantee: granteeOf(o),
       calls: Number(str(o, "calls", "10")),
       expires_at: expiresAt.toString(),
       endpoints,

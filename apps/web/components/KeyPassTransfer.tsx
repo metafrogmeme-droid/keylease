@@ -1,7 +1,13 @@
 "use client";
 import { useState } from "react";
 import { config } from "../lib/config.ts";
-import { NOT_TRANSFERABLE, NOT_TRANSFERABLE_TEXT, receiverProblem, transferTx } from "../lib/keypass.ts";
+import {
+  NOT_TRANSFERABLE,
+  NOT_TRANSFERABLE_TEXT,
+  receiverId,
+  receiverProblem,
+  transferTx,
+} from "../lib/keypass.ts";
 import { failureText } from "../lib/testkey.ts";
 import { txHash, useWallet } from "./WalletProvider.tsx";
 
@@ -22,7 +28,7 @@ export function KeyPassTransfer({
   });
 
   async function transfer() {
-    const to = receiver.trim();
+    const to = receiverId(receiver);
     const problem = receiverProblem(to, holder);
     if (problem) {
       setState({ kind: "error", text: problem });

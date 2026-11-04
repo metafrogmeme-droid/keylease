@@ -308,7 +308,9 @@ demo`, Seal and add key, confirm two transactions. Expect the field empty at onc
    call on `/models`, 0.025 NEAR). Expect `✓ The key works: the API answered HTTP 200 through the proxy.`
    and a `receipt tx` link.
 
-5. Your keys → Share on `web demo`: grantee `<you>.testnet` (or an agent account), preset `Demo, 1 hour,
+5. Your keys → Share on `web demo`: grantee `<you>.testnet`, an agent account, an EVM address (`0x` + 40
+   hex, any letter case; the lease goes to its lowercase eth-implicit account) or a 64-hex implicit account;
+   `alice.near` is refused before any wallet opens. Preset `Demo, 1 hour,
 10 calls`, Create lease and share, confirm one transaction. Expect a Share box `Lease <n> for <grantee>`
    with the link `…/lease/?id=<n>`, a QR code and Copy Link · SDK · near CLI · MCP; no snippet holds the key.
    Open the link: `Lease <n>`, status `active`, `0 used, 10 left of 10`, `in 1 h`, endpoint `/chat/completions`.
@@ -340,6 +342,16 @@ this account is revoked…`; every lease row says `revoked`, and any copied near
     transaction: `✓ Revoked lease <n> and every sub-lease below it.`, and the one below it reads
     `refused: a lease above was revoked`; its call fails with `parent_revoked`. The other branch stays
     `active`.
+
+12. EVM grantee (the shared account rule, `apps/web/lib/account.ts` → `@keylease/sdk/account`): Share on
+    `web demo` to a second MetaMask account's address as the wallet shows it (mixed case). Expect the Share
+    box to name the lowercase `0x…` account. Open the lease link in MetaMask's in-app browser with that
+    account and make one call (the SDK, or near CLI as that account). Record the `create_lease` and
+    `use_lease` txs, the OutLayer request id and the HTTP status. An EVM _owner_ already works on testnet:
+    the real-wallet run below sealed with `0x020a…925f` (`store_secrets` on `outlayer.testnet`), and its Test
+    key call was OutLayer request 8723, outcome `ok`, HTTP 200.
+
+    _Not run yet._
 
 Time to first lease (brief §4) is measured in CI by `apps/web/e2e/timing.spec.ts`. It drives connect →
 paste key → preset → share against a build with a test-only wallet (`pnpm build:e2e`, never deployed:

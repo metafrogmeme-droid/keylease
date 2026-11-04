@@ -73,8 +73,20 @@ describe("Key Pass transfer", () => {
 
   it("checks the receiver before any wallet opens", () => {
     expect(receiverProblem("bob.testnet", "agent.testnet")).toBeNull();
-    expect(receiverProblem("bob.near", "agent.testnet")).toMatch(/\.testnet/);
-    expect(receiverProblem("Bob.testnet", "agent.testnet")).toMatch(/\.testnet/);
+    expect(receiverProblem("bob.near", "agent.testnet")).toMatch(/mainnet/i);
+    expect(receiverProblem("Bob.testnet", "agent.testnet")).toMatch(/not a NEAR testnet account/);
+    expect(receiverProblem("0x1234", "agent.testnet")).toMatch(/0x and 40 hex/);
+    // An EVM holder (any letter case) and a 64-hex implicit account are fine new holders.
+    expect(receiverProblem("0x020A4366595292aa16184536BAB2e9949d0d925F", "agent.testnet")).toBeNull();
+    expect(
+      receiverProblem("98793cd91a3f870fb126f66285808c7e094afcfc4eda8a970f6648cdf0dbd6de", "agent.testnet"),
+    ).toBeNull();
+    expect(
+      receiverProblem(
+        "0x020A4366595292aa16184536BAB2e9949d0d925F",
+        "0x020a4366595292aa16184536bab2e9949d0d925f",
+      ),
+    ).toMatch(/already holds/);
     expect(receiverProblem("agent.testnet", "agent.testnet")).toMatch(/already holds/);
   });
 
@@ -111,7 +123,7 @@ describe("Key Pass transfer", () => {
     await screen.findByRole("group", { name: "Transfer Key Pass 7" });
     fireEvent.change(screen.getByLabelText(/New holder/), { target: { value: "bob.near" } });
     fireEvent.click(screen.getByRole("button", { name: "Transfer Key Pass" }));
-    expect(screen.getByRole("alert").textContent).toMatch(/\.testnet/);
+    expect(screen.getByRole("alert").textContent).toMatch(/mainnet/i);
     expect(send).not.toHaveBeenCalled();
   });
 

@@ -119,6 +119,9 @@ importers:
       '@keylease/outlayer':
         specifier: workspace:*
         version: link:../packages/outlayer
+      '@keylease/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       near-api-js:
         specifier: ^7.4.0
         version: 7.4.0

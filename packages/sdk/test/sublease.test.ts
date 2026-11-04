@@ -88,11 +88,19 @@ describe("lease().subLease", () => {
     await expect(
       l.subLease({ grantee: "helper.testnet", calls: 1, expiresAt: new Date(now - 1) }),
     ).rejects.toThrow(/in the future/);
-    await expect(l.subLease({ grantee: "helper.near", calls: 1 })).rejects.toThrow(/\.testnet/);
+    await expect(l.subLease({ grantee: "helper.near", calls: 1 })).rejects.toThrow(/mainnet/i);
     await expect(l.subLease({ grantee: "helper.testnet", calls: 1, endpoints: [] })).rejects.toThrow(
       /at least one endpoint/,
     );
     expect(f.calls.filter((c) => c.method === "create_sub_lease")).toEqual([]);
+  });
+
+  it("hands on to an EVM holder: a mixed-case 0x address is sent as its lowercase account", async () => {
+    const f = fake(created("14"), { get_lease: parent() });
+    const l = lease({ contract: C, leaseId: "7", transport: f.transport, now: () => now });
+    await l.subLease({ grantee: "0x020A4366595292aa16184536BAB2e9949d0d925F", calls: 1 });
+    expect(f.calls[1]?.args["grantee"]).toBe("0x020a4366595292aa16184536bab2e9949d0d925f");
+    await expect(l.subLease({ grantee: "0x1234", calls: 1 })).rejects.toThrow(/0x and 40 hex/);
   });
 
   it("depth is at most three levels", async () => {
@@ -186,7 +194,7 @@ describe("lease().transfer (Key Pass, NEP-171)", () => {
     const f = fake(() => ({ hash: "x", value: null, logs: [] }), { get_lease: parent() });
     const l = lease({ contract: C, leaseId: "7", transport: f.transport });
     await expect(l.transfer("agent.testnet")).rejects.toThrow(/already holds/);
-    await expect(l.transfer("bob.near")).rejects.toThrow(/\.testnet/);
+    await expect(l.transfer("bob.near")).rejects.toThrow(/mainnet/i);
 
     const rev = fake(() => ({ hash: "x", value: null, logs: [] }), {
       get_lease: parent({ status: "revoked" }),
@@ -196,6 +204,16 @@ describe("lease().transfer (Key Pass, NEP-171)", () => {
       .catch((x: unknown) => x)) as KeyLeaseError;
     expect(e2.code).toBe("lease_revoked");
     expect([...f.calls, ...holder.calls, ...rev.calls].some((c) => c.method === "nft_transfer")).toBe(false);
+  });
+
+  it("moves the Key Pass to an EVM or implicit account, normalised", async () => {
+    const f = fake(() => ({ hash: "TxT", value: null, logs: [] }), { get_lease: parent() });
+    const l = lease({ contract: C, leaseId: "7", transport: f.transport });
+    await l.transfer(" 0x020A4366595292aa16184536BAB2e9949d0d925F ");
+    expect(f.calls[1]?.args["receiver_id"]).toBe("0x020a4366595292aa16184536bab2e9949d0d925f");
+    const hex64 = "98793cd91a3f870fb126f66285808c7e094afcfc4eda8a970f6648cdf0dbd6de";
+    await l.transfer(hex64);
+    expect(f.calls[3]?.args["receiver_id"]).toBe(hex64);
   });
 
   it("a lease the owner made non-transferable comes back with the contract's sentence", async () => {

@@ -6,7 +6,8 @@
   "type": "module",
   "description": "KeyLease client: make leased API calls on NEAR testnet with a lease id, never a key.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./account": "./src/account.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
