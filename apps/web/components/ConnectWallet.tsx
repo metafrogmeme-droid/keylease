@@ -1,12 +1,29 @@
 "use client";
-import { useId, useState } from "react";
-import type { WalletOption } from "../lib/wallets.ts";
+import { useEffect, useId, useState } from "react";
+import { walletOptions, type WalletOption } from "../lib/wallets.ts";
 import { useWallet } from "./WalletProvider.tsx";
 
-export function ConnectWallet({ options }: { readonly options: readonly WalletOption[] }) {
+/** True once an EVM wallet has put `window.ethereum` on the page (MetaMask's in-app browser, the extension). */
+function useInjectedEvm(): boolean {
+  const [injected, setInjected] = useState(false);
+  useEffect(() => {
+    const look = () => {
+      setInjected("ethereum" in window && Boolean((window as { ethereum?: unknown }).ethereum));
+    };
+    look();
+    window.addEventListener("ethereum#initialized", look, { once: true });
+    return () => {
+      window.removeEventListener("ethereum#initialized", look);
+    };
+  }, []);
+  return injected;
+}
+
+export function ConnectWallet({ reownProjectId }: { readonly reownProjectId: string | null }) {
   const w = useWallet();
   const [open, setOpen] = useState(false);
   const listId = useId();
+  const options = walletOptions({ reownProjectId }, { injected: useInjectedEvm() });
 
   if (w.accountId !== null) {
     return (
@@ -48,6 +65,7 @@ export function ConnectWallet({ options }: { readonly options: readonly WalletOp
               >
                 {o.name}
                 {o.kind !== o.name && <span className="tag">{o.kind}</span>}
+                {o.recommended && <span className="tag">recommended</span>}
               </button>{" "}
               <span id={`${listId}-${o.id}`} className="hint">
                 {o.note}

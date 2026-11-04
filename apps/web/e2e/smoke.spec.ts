@@ -62,7 +62,9 @@ test("first visit: banner, three-step strip, faucet link, strict CSP, nothing th
   expect(w.problems).toEqual([]);
 });
 
-test("wallet picker: keyboard only, six wallets, WalletConnect says not configured", async ({ page }) => {
+test("wallet picker: keyboard only, six wallets, WalletConnect not configured, MetaMask greyed out without an injected wallet", async ({
+  page,
+}) => {
   const w = await watch(page);
   await page.goto("/");
   const connect = page.getByRole("button", { name: "Connect wallet", exact: true });
@@ -77,17 +79,38 @@ test("wallet picker: keyboard only, six wallets, WalletConnect says not configur
 
   // Wallet code loaded under the CSP: every configured wallet becomes clickable.
   await expect(list.getByRole("button", { name: /^MyNearWallet/ })).toBeEnabled();
-  await expect(list.getByRole("button", { name: /^MetaMask/ })).toBeEnabled();
   const wc = list.getByRole("button", { name: /^WalletConnect/ });
   await expect(wc).toBeDisabled();
   await expect(wc).toHaveAccessibleDescription(/not configured/);
 
-  // MetaMask without an injected wallet: a plain message, no crash.
-  await list.getByRole("button", { name: /^MetaMask/ }).click();
-  await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toContainText(/wallet/i);
+  // No window.ethereum here: MetaMask is greyed out and says where to go instead.
+  const mm = list.getByRole("button", { name: /^MetaMask/ });
+  await expect(mm).toBeDisabled();
+  await expect(mm).toHaveAccessibleDescription("Open in MetaMask app browser, or use WalletConnect");
 
   expect(await w.violations()).toEqual([]);
   expect(w.problems.filter((p) => !/wallet|ethereum|provider/i.test(p))).toEqual([]);
+});
+
+test("inside MetaMask's browser (window.ethereum): MetaMask first and recommended, WalletConnect hidden", async ({
+  page,
+}) => {
+  const w = await watch(page);
+  // A stand-in for MetaMask's injected provider; it answers nothing, the picker only looks for it.
+  await page.addInitScript(() => {
+    Object.assign(window, {
+      ethereum: { isMetaMask: true, request: () => new Promise(() => undefined), on: () => undefined },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Connect wallet", exact: true }).click();
+  const list = page.getByRole("list", { name: "Wallets" });
+  const first = list.getByRole("button").first();
+  await expect(first).toContainText("MetaMask");
+  await expect(first).toContainText("recommended");
+  await expect(list.getByRole("button", { name: /^WalletConnect/ })).toHaveCount(0);
+  await expect(list.getByRole("button", { name: /^MetaMask/ })).toBeEnabled();
+  expect(await w.violations()).toEqual([]);
 });
 
 test("pubkey relay on the app's own origin: refuses a key value and other origins, before any upstream call", async ({

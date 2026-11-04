@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { policy } from "../lib/csp.ts";
+import { RPC_URLS } from "../lib/near-rpc.ts";
 import { NETWORK, sources, walletOptions } from "../lib/wallets.ts";
 
 const OFF = { reownProjectId: null };
@@ -24,13 +25,31 @@ describe("wallet options", () => {
     expect(walletOptions(ON).find((o) => o.id === "wallet-connect")?.configured).toBe(true);
   });
 
-  it("runs MetaMask on NEAR testnet, chain 398", () => {
-    expect(walletOptions(OFF).find((o) => o.id === "ethereum-wallets")?.note).toContain("398");
+  it("runs MetaMask on NEAR testnet, chain 398, where the browser has it", () => {
+    const mm = walletOptions(OFF, { injected: true }).find((o) => o.id === "ethereum-wallets");
+    expect(mm?.note).toContain("398");
+    expect(mm?.configured).toBe(true);
   });
 
-  it("uses only the testnet RPC for wallet-selector", () => {
+  it("MetaMask's own browser: WalletConnect hidden, MetaMask first and recommended", () => {
+    const opts = walletOptions(ON, { injected: true });
+    expect(opts.map((o) => o.id)).not.toContain("wallet-connect");
+    expect(opts[0]?.id).toBe("ethereum-wallets");
+    expect(opts[0]?.recommended).toBe(true);
+    expect(opts.filter((o) => o.recommended)).toHaveLength(1);
+  });
+
+  it("no MetaMask in this browser: MetaMask greyed out, pointing at its app browser or WalletConnect", () => {
+    const mm = walletOptions(ON).find((o) => o.id === "ethereum-wallets");
+    expect(mm?.configured).toBe(false);
+    expect(mm?.note).toBe("Open in MetaMask app browser, or use WalletConnect");
+    expect(walletOptions(ON).map((o) => o.id)).toContain("wallet-connect");
+  });
+
+  it("uses the testnet RPC for wallet-selector, with FastNear's testnet RPC as the fallback", () => {
     expect(NETWORK.networkId).toBe("testnet");
     expect(NETWORK.nodeUrl).toBe("https://rpc.testnet.near.org");
+    expect(RPC_URLS).toEqual(["https://rpc.testnet.near.org", "https://test.rpc.fastnear.com"]);
   });
 });
 
@@ -40,6 +59,7 @@ describe("CSP sources (T8)", () => {
     expect(s.connect).toEqual([
       "'self'",
       "https://rpc.testnet.near.org",
+      "https://test.rpc.fastnear.com",
       "https://eth-rpc.testnet.near.org",
       "https://h4n.app",
       "https://logout-bridge-service.intear.tech",
