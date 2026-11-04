@@ -6,3 +6,6 @@ packages:
   - "mock-api"
   - "cli"
   - "examples"
+
+patchedDependencies:
+  "@near-wallet-selector/ethereum-wallets@10.1.4": patches/@near-wallet-selector__ethereum-wallets@10.1.4.patch
