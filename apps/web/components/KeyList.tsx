@@ -63,7 +63,10 @@ export function KeyList({
             tx: null,
             verdict: {
               ok: false,
-              text: "This wallet left the page, so the test cannot finish here. Use Meteor, HOT, Intear or MetaMask, or `kl call`.",
+              text:
+                leaseOut === undefined
+                  ? "This wallet left the page, so the test cannot finish here. Use Meteor, HOT, Intear or MetaMask, or `kl call`."
+                  : "The wallet did not hand back the lease id, so the test cannot finish here; the lease is under your leases, or run `kl call`.",
             },
           });
           return;

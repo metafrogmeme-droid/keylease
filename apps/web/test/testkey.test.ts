@@ -49,6 +49,21 @@ describe("Test key", () => {
     expect(returnValue(undefined)).toBeNull();
   });
 
+  it("unwraps the wallet contract answer of an EVM wallet (eth-implicit 0x owner)", () => {
+    const bytes = (v: unknown) => Array.from(new TextEncoder().encode(JSON.stringify(v)));
+    expect(returnValue(ok({ success: true, success_value: bytes("7"), error: null }))).toBe("7");
+    expect(
+      returnValue(ok({ success: true, success_value: bytes({ ok: true, status: 200 }), error: null })),
+    ).toEqual({
+      ok: true,
+      status: 200,
+    });
+    expect(returnValue(ok({ success: true, success_value: null, error: null }))).toBeNull();
+    expect(() =>
+      returnValue(ok({ success: false, success_value: null, error: "Failed Near promise" })),
+    ).toThrow("Failed Near promise");
+  });
+
   it("says in one sentence what the answer means", () => {
     expect(verdict({ ok: true, status: 200 })).toEqual({
       ok: true,
