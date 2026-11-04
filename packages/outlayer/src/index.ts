@@ -14,7 +14,7 @@ export {
   MAX_WASM_BYTES,
   type Fetcher,
 } from "./hosting.ts";
-export { completion, type Completed } from "./outcome.ts";
+export { completion, outlayerRequestId, type Completed } from "./outcome.ts";
 export {
   fetchKeystorePubkey,
   pubkeyRequest,

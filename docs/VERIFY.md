@@ -346,7 +346,8 @@ this account is revoked…`; every lease row says `revoked`, and any copied near
 12. EVM grantee (the shared account rule, `apps/web/lib/account.ts` → `@keylease/sdk/account`): Share on
     `web demo` to a second MetaMask account's address as the wallet shows it (mixed case). Expect the Share
     box to name the lowercase `0x…` account. Open the lease link in MetaMask's in-app browser with that
-    account and make one call (the SDK, or near CLI as that account). Record the `create_lease` and
+    account and press **Make a test call** (the lease page's button for the signed-in holder; it shows the
+    HTTP status, the OutLayer request id, the `use_lease` tx and the calls left). Record the `create_lease` and
     `use_lease` txs, the OutLayer request id and the HTTP status. An EVM _owner_ already works on testnet:
     the real-wallet run below sealed with `0x020a…925f` (`store_secrets` on `outlayer.testnet`), and its Test
     key call was OutLayer request 8723, outcome `ok`, HTTP 200.

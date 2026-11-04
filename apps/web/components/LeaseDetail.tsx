@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { config } from "../lib/config.ts";
 import { STATUS, relative, type LeaseView } from "../lib/lease-view.ts";
 import { view } from "../lib/near-rpc.ts";
+import { HolderCall } from "./HolderCall.tsx";
 import { KeyPassTransfer } from "./KeyPassTransfer.tsx";
 import { Receipts } from "./Receipts.tsx";
 import { SharePanel } from "./SharePanel.tsx";
@@ -89,6 +90,16 @@ export function LeaseDetail() {
           }}
         />
       )}
+      <HolderCall
+        lease={lease}
+        onCalled={async () => {
+          const fresh = await view<LeaseView | null>(config.rpcUrl, config.contractId, "get_lease", {
+            lease_id: lease.lease_id,
+          });
+          if (fresh) setLease(fresh);
+          return fresh;
+        }}
+      />
       {lease.status === "active" && (
         <SharePanel
           info={{

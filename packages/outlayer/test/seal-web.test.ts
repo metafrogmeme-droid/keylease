@@ -63,6 +63,6 @@ describe("browser keystore envelope (noble)", () => {
         if (m[1]) visit(m[1]);
     };
     visit("web.ts");
-    expect([...seen].sort()).toEqual(["conditions.ts", "seal-web.ts", "secrets.ts", "web.ts"]);
+    expect([...seen].sort()).toEqual(["conditions.ts", "outcome.ts", "seal-web.ts", "secrets.ts", "web.ts"]);
   });
 });
