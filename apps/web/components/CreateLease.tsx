@@ -73,7 +73,7 @@ export function CreateLease({
         transferable,
       );
       const [out] = await w.send([tx]);
-      const leaseId = returnValue(out);
+      const leaseId = returnValue(out, config.contractId);
       if (typeof leaseId !== "string") {
         setState({
           kind: "error",

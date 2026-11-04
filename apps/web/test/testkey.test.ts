@@ -49,6 +49,30 @@ describe("Test key", () => {
     expect(returnValue(undefined)).toBeNull();
   });
 
+  it("reads a large answer from the contract receipt when the wallet contract truncates it", () => {
+    const big = { ok: true, status: 200, body: "x".repeat(17_000) };
+    const out = {
+      ...ok({
+        success: true,
+        success_value: null,
+        error: "Result truncated: response size 17050 exceeds limit 16384",
+      }),
+      receipts_outcome: [
+        {
+          outcome: {
+            executor_id: "outlayer.testnet",
+            status: { SuccessValue: btoa(JSON.stringify({ other: 1 })) },
+          },
+        },
+        { outcome: { executor_id: "kl.testnet", status: { SuccessReceiptId: "abc" } } },
+        { outcome: { executor_id: "kl.testnet", status: { SuccessValue: btoa(JSON.stringify(big)) } } },
+        { outcome: { executor_id: "0xabc", status: { SuccessValue: "" } } },
+      ],
+    };
+    expect(returnValue(out, "kl.testnet")).toEqual(big);
+    expect(returnValue(out)).toBeNull();
+  });
+
   it("unwraps the wallet contract answer of an EVM wallet (eth-implicit 0x owner)", () => {
     const bytes = (v: unknown) => Array.from(new TextEncoder().encode(JSON.stringify(v)));
     expect(returnValue(ok({ success: true, success_value: bytes("7"), error: null }))).toBe("7");
