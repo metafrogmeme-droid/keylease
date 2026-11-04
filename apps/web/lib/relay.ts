@@ -7,6 +7,8 @@
  * and only `{pubkey}` back. Nothing from the request is logged. Web APIs only: runs on Vercel's edge
  * runtime and in scripts/serve.ts.
  */
+import { TESTNET_ACCOUNT_RULE, isTestnetAccount } from "./account.ts";
+
 export const UPSTREAM = "https://testnet-api.outlayer.ai/secrets/pubkey";
 export const MAX_BODY = 2048;
 export const LIMIT_PER_MINUTE = 20;
@@ -15,7 +17,6 @@ const TIMEOUT_MS = 10_000;
 const HASH = /^[0-9a-f]{64}$/u;
 const PROFILE = /^[A-Za-z0-9_-]{1,64}$/u;
 const ENV_NAME = /^[A-Z][A-Z0-9_]{0,63}$/u;
-const TESTNET_ACCOUNT = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*\.testnet$/u;
 
 export interface PubkeyBody {
   readonly accessor: { readonly type: "WasmHash"; readonly hash: string };
@@ -36,7 +37,7 @@ export function checkBody(raw: unknown): PubkeyBody | string {
   const hash = acc["hash"];
   if (typeof hash !== "string" || !HASH.test(hash)) return "accessor.hash must be 64 lowercase hex";
   const owner = o["owner"];
-  if (typeof owner !== "string" || !TESTNET_ACCOUNT.test(owner)) return "owner must be a .testnet account";
+  if (!isTestnetAccount(owner)) return `owner must be ${TESTNET_ACCOUNT_RULE}`;
   const profile = o["profile"];
   if (typeof profile !== "string" || !PROFILE.test(profile))
     return "profile must be 1-64 letters, digits, - or _";

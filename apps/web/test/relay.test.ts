@@ -58,6 +58,10 @@ describe("pubkey relay (E-017, T22)", () => {
       { ...GOOD, accessor: { type: "WasmHash", hash: HASH, extra: 1 } },
       { ...GOOD, owner: "alice.near" },
       { ...GOOD, owner: "Alice.testnet" },
+      { ...GOOD, owner: "0X020A4366595292AA16184536BAB2E9949D0D925F" },
+      { ...GOOD, owner: "0x020a4366595292aa16184536bab2e9949d0d925" },
+      { ...GOOD, owner: "AB".repeat(32) },
+      { ...GOOD, owner: 7 },
       { ...GOOD, profile: "a/b" },
       { ...GOOD, secrets_json: "{}" },
       { ...GOOD, secrets_json: "[]" },
@@ -66,6 +70,15 @@ describe("pubkey relay (E-017, T22)", () => {
     ];
     for (const b of bad) expect(typeof checkBody(b), JSON.stringify(b)).toBe("string");
     expect(checkBody(GOOD)).toEqual(GOOD);
+  });
+
+  it("accepts MetaMask (eth-implicit) and NEAR implicit owners and forwards them unchanged", async () => {
+    for (const owner of ["0x020a4366595292aa16184536bab2e9949d0d925f", "ab".repeat(32)]) {
+      const f = upstream();
+      const res = await relayPubkey(post({ ...GOOD, owner }), deps(f));
+      expect(res.status, owner).toBe(200);
+      expect((JSON.parse(f.mock.calls[0]?.[1]?.body as string) as { owner: string }).owner).toBe(owner);
+    }
   });
 
   it("is not an open proxy: method, origin, content type and size are checked", async () => {

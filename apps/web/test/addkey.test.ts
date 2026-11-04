@@ -96,6 +96,27 @@ describe("Add key in the browser (T8)", () => {
     expect(net.sent).toEqual([]);
   });
 
+  it("builds the same two transactions for a MetaMask (eth-implicit) owner, and refuses a bad owner first", async () => {
+    const owner = "0x020a4366595292aa16184536bab2e9949d0d925f";
+    const net = fakeNet(keystore().pubHex);
+    const built = await keyTransactions(cfg, owner, FORM, KEY, { fetcher: net.fetcher });
+    expect(built.transactions.map((t) => t.receiverId)).toEqual([
+      "outlayer.testnet",
+      "keylease.alice.testnet",
+    ]);
+    const pubkeyReq = net.sent.find((r) => r.url === "/api/secrets/pubkey");
+    expect((JSON.parse(pubkeyReq?.body ?? "{}") as { owner: string }).owner).toBe(owner);
+    const quote = net.sent.find((r) => r.body.includes("estimate_storage_cost"));
+    expect(quote).toBeDefined();
+
+    const quiet = fakeNet(keystore().pubHex);
+    for (const bad of ["alice.near", owner.toUpperCase(), ""])
+      await expect(keyTransactions(cfg, bad, FORM, KEY, { fetcher: quiet.fetcher })).rejects.toThrow(
+        /testnet account/,
+      );
+    expect(quiet.sent).toEqual([]);
+  });
+
   it("says plainly when the keystore cannot be reached from the page (CORS, Q-011)", async () => {
     const net = fakeNet(keystore().pubHex);
     const blocked: Fetch = (url, init) =>
