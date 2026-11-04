@@ -11,3 +11,4 @@ export {
   secretsJson,
   storeSecretsArgs,
 } from "./secrets.ts";
+export { outlayerRequestId } from "./outcome.ts";
