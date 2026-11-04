@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WalletContext, type WalletState } from "../components/WalletProvider.tsx";
-import { holderCallTx } from "../lib/holdercall.ts";
+import { holderCallTx, suggestedModel } from "../lib/holdercall.ts";
 import { fakeRpc } from "./fake-rpc.ts";
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("id=7") }));
@@ -48,7 +48,16 @@ function wallet(accountId: string | null, send: WalletState["send"]): WalletStat
 /** get_lease answers `before` until a call went out, then `after` (calls used up by one). */
 function chain(before: Record<string, unknown>, after: Record<string, unknown> = before) {
   let called = false;
-  const rpc = fakeRpc({ get_lease: () => (called ? after : before), list_receipts: () => [] });
+  const rpc = fakeRpc({
+    get_lease: () => (called ? after : before),
+    list_receipts: () => [],
+    get_key: () => ({
+      key_id: "2",
+      provider: "AnthropicCompatible",
+      base_url: "https://api.anthropic.com/v1",
+      label: "demo",
+    }),
+  });
   vi.stubGlobal("fetch", rpc.fetcher);
   return {
     rpc,
@@ -79,7 +88,7 @@ const requested = (id: number) =>
   `EVENT_JSON:${JSON.stringify({ standard: "near-offshore", version: "1.0.0", event: "execution_requested", data: [{ request_id: id }] })}`;
 
 describe("lease page: the holder makes a test call", () => {
-  it("the call is one use_lease: a models listing as a GET when allowed, else the first endpoint with a tiny POST", () => {
+  it("the call is one use_lease: a models listing as a GET when allowed, else a tiny POST with the model", () => {
     const fc = (tx: ReturnType<typeof holderCallTx>) => {
       const f = (tx.actions[0] as { functionCall: { methodName: string; args: Uint8Array; deposit: bigint } })
         .functionCall;
@@ -90,24 +99,35 @@ describe("lease page: the holder makes a test call", () => {
       };
     };
     // A models listing costs no tokens, so it is used when the lease allows one; else the first endpoint.
-    expect(fc(holderCallTx(CONTRACT, "7", ["/messages", "/models"])).args).toEqual({
+    expect(fc(holderCallTx(CONTRACT, "7", ["/messages", "/models"], "claude-haiku-5-5")).args).toEqual({
       lease_id: "7",
       endpoint: "/models",
       method: "GET",
     });
-    const post = fc(holderCallTx(CONTRACT, "7", ["/messages", "/chat/completions"]));
+    const post = fc(holderCallTx(CONTRACT, "7", ["/messages", "/chat/completions"], "claude-haiku-5-5"));
     expect(post.m).toBe("use_lease");
     expect(post.args).toMatchObject({ lease_id: "7", endpoint: "/messages", method: "POST" });
-    expect(JSON.parse(String(post.args["body"]))).toMatchObject({
+    expect(JSON.parse(String(post.args["body"]))).toEqual({
+      model: "claude-haiku-5-5",
       max_tokens: 16,
-      messages: [{ role: "user" }],
+      messages: [{ role: "user", content: "Say hi in two words." }],
     });
     expect(post.deposit).toBe(25_000_000_000_000_000_000_000n);
-    expect(fc(holderCallTx(CONTRACT, "7", ["/v1/models"])).args).toEqual({
-      lease_id: "7",
-      endpoint: "/v1/models",
-      method: "GET",
-    });
+    // No model given: the field is left out rather than invented.
+    expect(
+      JSON.parse(String(fc(holderCallTx(CONTRACT, "7", ["/chat/completions"], "  ")).args["body"])),
+    ).not.toHaveProperty("model");
+  });
+
+  it("suggests a model per provider (the holder can change it); none where it cannot know one", () => {
+    expect(suggestedModel("AnthropicCompatible", "https://api.anthropic.com/v1")).toBe("claude-haiku-5-5");
+    expect(suggestedModel("OpenAiCompatible", "https://keylease.humanoid-traders.com/mock/v1")).toBe(
+      "keylease-mock-1",
+    );
+    expect(suggestedModel("OpenAiCompatible", "https://api.openai.com/v1")).toBe("gpt-4o-mini");
+    expect(suggestedModel("OpenAiCompatible", "https://llm.example/v1")).toBe("");
+    expect(suggestedModel("NearAiCloud", "https://cloud-api.near.ai/v1")).toBe("");
+    expect(suggestedModel("Custom", "https://api.example")).toBe("");
   });
 
   it("the holder of an active lease sees the button", async () => {
@@ -115,6 +135,10 @@ describe("lease page: the holder makes a test call", () => {
     show(HOLDER, vi.fn<WalletState["send"]>());
     expect(await screen.findByRole("button", { name: "Make a test call" })).toBeTruthy();
     expect(screen.getByText(/One call on \/messages/)).toBeTruthy();
+    // The key is Anthropic-compatible: the model field is filled in, and editable.
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>(/Model/).value).toBe("claude-haiku-5-5");
+    });
   });
 
   it("anyone else, or nobody signed in, sees no button and why", async () => {
@@ -202,6 +226,41 @@ describe("lease page: the holder makes a test call", () => {
       expect(box.textContent).toMatch(/HTTP 201/);
     });
     expect(box.textContent).toMatch(/OutLayer request 9001/);
+  });
+
+  it("sends the model the holder typed, and shows an API 4xx as the API's answer, not a KeyLease failure", async () => {
+    const c = chain(lease(), lease({ calls_used: 1, calls_left: 2 }));
+    const rejected = {
+      ...answer,
+      status: 400,
+      body: JSON.stringify({
+        type: "error",
+        error: { type: "invalid_request_error", message: "model: Field required" },
+      }),
+    };
+    const send = vi.fn<WalletState["send"]>().mockImplementation(() => {
+      c.markCalled();
+      return Promise.resolve([
+        { status: { SuccessValue: b64(rejected) }, transaction_outcome: { id: "Tx400" } },
+      ]);
+    });
+    show(HOLDER, send);
+    await screen.findByRole("button", { name: "Make a test call" });
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>(/Model/).value).toBe("claude-haiku-5-5");
+    });
+    fireEvent.change(screen.getByLabelText(/Model/), { target: { value: "claude-sonnet-5-5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Make a test call" }));
+    const box = await screen.findByRole("status", { name: "Test call result" });
+    await waitFor(() => {
+      expect(box.textContent).toMatch(
+        /⚠ The proxy works; the API rejected the request: model: Field required/,
+      );
+    });
+    expect(box.textContent).toMatch(/HTTP 400/);
+    const f = (send.mock.calls[0]?.[0][0]?.actions[0] as { functionCall: { args: Uint8Array } }).functionCall;
+    const sent = JSON.parse(new TextDecoder().decode(f.args)) as { body: string };
+    expect(JSON.parse(sent.body)).toMatchObject({ model: "claude-sonnet-5-5" });
   });
 
   it("error: a refusal or a declined wallet is shown plainly, and the button comes back", async () => {

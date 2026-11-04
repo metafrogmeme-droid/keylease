@@ -1,9 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { config } from "../lib/config.ts";
-import { callBlocked, holderCallTx, readCall, testEndpoint, type CallResult } from "../lib/holdercall.ts";
+import {
+  callBlocked,
+  holderCallTx,
+  readCall,
+  sendsPrompt,
+  suggestedModel,
+  testEndpoint,
+  type CallResult,
+} from "../lib/holdercall.ts";
 import type { LeaseView } from "../lib/lease-view.ts";
-import { failureText } from "../lib/testkey.ts";
+import { view } from "../lib/near-rpc.ts";
+import { failureText, verdictMark } from "../lib/testkey.ts";
 import { useWallet } from "./WalletProvider.tsx";
 
 /**
@@ -25,11 +34,30 @@ export function HolderCall({
   >({ kind: "idle" });
   const blocked = callBlocked(lease, w.accountId);
   const endpoint = testEndpoint(lease.endpoints);
+  const prompt = sendsPrompt(lease.endpoints);
+  const [model, setModel] = useState("");
+
+  // The model field starts from the key's provider (Anthropic-compatible keys need one).
+  useEffect(() => {
+    if (blocked !== null || !prompt) return;
+    const run = { live: true };
+    view<{ provider: string; base_url: string } | null>(config.rpcUrl, config.contractId, "get_key", {
+      key_id: lease.key_id,
+    }).then(
+      (k) => {
+        if (run.live && k) setModel((m) => (m === "" ? suggestedModel(k.provider, k.base_url) : m));
+      },
+      () => undefined,
+    );
+    return () => {
+      run.live = false;
+    };
+  }, [blocked, prompt, lease.key_id]);
 
   async function call() {
     setState({ kind: "working" });
     try {
-      const [out] = await w.send([holderCallTx(config.contractId, lease.lease_id, lease.endpoints)]);
+      const [out] = await w.send([holderCallTx(config.contractId, lease.lease_id, lease.endpoints, model)]);
       if (out === undefined) {
         setState({
           kind: "error",
@@ -56,6 +84,19 @@ export function HolderCall({
             One call on {endpoint} through the proxy, as the holder: 0.025 NEAR attached, unused compute
             refunded, and it uses one of the lease&apos;s calls.
           </p>
+          {blocked === null && prompt && (
+            <label>
+              Model (the API&apos;s model id; leave empty to send none)
+              <input
+                value={model}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => {
+                  setModel(e.target.value);
+                }}
+              />
+            </label>
+          )}
           {blocked === null && (
             <button
               type="button"
@@ -72,8 +113,8 @@ export function HolderCall({
       {state.kind === "error" && <p role="alert">{state.text}</p>}
       {state.kind === "done" && (
         <div role="status" aria-label="Test call result">
-          <p className={state.result.verdict.ok ? "ok" : "bad"}>
-            {state.result.verdict.ok ? "✓" : "✗"} {state.result.verdict.text}
+          <p className={state.result.verdict.ok ? "ok" : state.result.verdict.apiRejected ? "hint" : "bad"}>
+            {verdictMark(state.result.verdict)} {state.result.verdict.text}
           </p>
           <ul>
             <li>HTTP {state.result.status === null ? "–" : String(state.result.status)}</li>

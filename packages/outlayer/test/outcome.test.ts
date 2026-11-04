@@ -50,3 +50,29 @@ describe("OutLayer request id", () => {
     ).toBeNull();
   });
 });
+
+describe("OutLayer request id, as outlayer.testnet logs it", () => {
+  it("reads data[0].request_data, a JSON string, -> request_id (the 4 Nov run: request 8818)", async () => {
+    const { outlayerRequestId } = await import("../src/outcome.ts");
+    const log = `EVENT_JSON:${JSON.stringify({
+      standard: "near-offshore",
+      version: "1.0.0",
+      event: "execution_requested",
+      data: [
+        {
+          request_data: JSON.stringify({
+            request_id: 8818,
+            sender_id: "keylease.keylease-spike-3298edc1.testnet",
+            payer_account_id: "0x0acca2862903d0415639316574a5286d42854ea8",
+          }),
+          data_id: "abc",
+          timestamp: 1,
+        },
+      ],
+    })}`;
+    expect(outlayerRequestId(["other log", log])).toBe("8818");
+    // A request_data that is not JSON is skipped, not thrown.
+    const broken = log.replace(/request_data":"[^]*?","data_id/u, 'request_data":"{not json","data_id');
+    expect(outlayerRequestId([broken])).toBeNull();
+  });
+});

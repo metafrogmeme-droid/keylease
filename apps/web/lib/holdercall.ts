@@ -15,6 +15,20 @@ const TGAS = 1_000_000_000_000n;
 /** A tiny prompt: chat-style APIs (OpenAI- or Anthropic-shaped) take it; it asks for 16 tokens at most. */
 export const TEST_PROMPT = { max_tokens: 16, messages: [{ role: "user", content: "Say hi in two words." }] };
 
+/**
+ * A model to put in the test prompt, by the key's provider and base URL; the holder can change it on the
+ * page. Empty where the app cannot know one (NEAR AI Cloud, other OpenAI-compatible hosts, Custom): then
+ * the holder types it, or the request goes without one and the API says what it wants.
+ */
+export function suggestedModel(provider: string, baseUrl: string): string {
+  if (provider === "AnthropicCompatible") return "claude-haiku-5-5"; // the current smallest Claude model
+  if (provider === "OpenAiCompatible") {
+    if (/\/mock(\/|$)/u.test(new URL(baseUrl).pathname)) return "keylease-mock-1"; // the demo API
+    if (new URL(baseUrl).hostname === "api.openai.com") return "gpt-4o-mini";
+  }
+  return "";
+}
+
 /** `/models` (any prefix) is read with GET; every other endpoint gets the tiny prompt as POST. */
 function isListing(endpoint: string): boolean {
   return /(^|\/)models$/u.test(endpoint);
@@ -25,11 +39,21 @@ export function testEndpoint(endpoints: readonly string[]): string {
   return endpoints.find(isListing) ?? endpoints[0] ?? "/";
 }
 
-export function holderCallTx(contractId: string, leaseId: string, endpoints: readonly string[]): Tx {
+/** Whether the test call sends a prompt (and so needs a model) rather than reading a models listing. */
+export const sendsPrompt = (endpoints: readonly string[]) => !isListing(testEndpoint(endpoints));
+
+export function holderCallTx(
+  contractId: string,
+  leaseId: string,
+  endpoints: readonly string[],
+  model: string,
+): Tx {
   const endpoint = testEndpoint(endpoints);
+  const m = model.trim();
+  const prompt = m === "" ? TEST_PROMPT : { model: m, ...TEST_PROMPT };
   const args = isListing(endpoint)
     ? { lease_id: leaseId, endpoint, method: "GET" }
-    : { lease_id: leaseId, endpoint, method: "POST", body: JSON.stringify(TEST_PROMPT) };
+    : { lease_id: leaseId, endpoint, method: "POST", body: JSON.stringify(prompt) };
   return {
     receiverId: contractId,
     actions: [actionCreators.functionCall("use_lease", args, 300n * TGAS, CALL_DEPOSIT)],

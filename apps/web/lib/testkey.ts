@@ -85,7 +85,33 @@ export function returnValue(outcome: unknown, contractId?: string): unknown {
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(bytes as number[])));
 }
 
-export type Verdict = { readonly ok: boolean; readonly text: string };
+export type Verdict = {
+  readonly ok: boolean;
+  readonly text: string;
+  /** The proxy and the lease worked; the API itself said no to the request (a 4xx other than 401/403). */
+  readonly apiRejected?: true;
+};
+
+/** ✓ for a working call, ⚠ when only the API said no, ✗ for everything else. */
+export const verdictMark = (v: Verdict) => (v.ok ? "✓" : v.apiRejected ? "⚠" : "✗");
+
+/** The API's own error sentence from a JSON error body (Anthropic and OpenAI shapes), if there is one. */
+function apiMessage(body: unknown): string | null {
+  if (typeof body !== "string") return null;
+  try {
+    const j = JSON.parse(body) as { error?: unknown; message?: unknown };
+    const e = j.error;
+    const m =
+      (typeof e === "object" && e !== null && typeof (e as { message?: unknown }).message === "string"
+        ? (e as { message: string }).message
+        : null) ??
+      (typeof j.message === "string" ? j.message : null) ??
+      (typeof e === "string" ? e : null);
+    return m === null ? null : m.slice(0, 200);
+  } catch {
+    return null;
+  }
+}
 
 /** One plain sentence for the proxy's answer (see contracts/keylease/src/run.rs `classify`). */
 export function verdict(answer: unknown): Verdict {
@@ -94,7 +120,13 @@ export function verdict(answer: unknown): Verdict {
       ok: false,
       text: "OutLayer returned no answer (the run failed or timed out); the call was still used.",
     };
-  const a = answer as { ok?: unknown; status?: unknown; error?: unknown };
+  const a = answer as {
+    ok?: unknown;
+    status?: unknown;
+    error?: unknown;
+    body?: unknown;
+    body_encoding?: unknown;
+  };
   if (a.ok === true) {
     const status = typeof a.status === "number" ? a.status : 0;
     if (status >= 200 && status < 300)
@@ -104,6 +136,16 @@ export function verdict(answer: unknown): Verdict {
         ok: false,
         text: `The API refused the key (HTTP ${String(status)}); check the key or its base URL.`,
       };
+    if (status >= 400 && status < 500) {
+      const m = a.body_encoding === "utf8" ? apiMessage(a.body) : null;
+      return {
+        ok: false,
+        apiRejected: true,
+        text: m
+          ? `The proxy works; the API rejected the request: ${m}`
+          : `The proxy works; the API rejected the request (HTTP ${String(status)}).`,
+      };
+    }
     return { ok: false, text: `The proxy reached the API, which answered HTTP ${String(status)}.` };
   }
   const code = typeof a.error === "string" ? a.error : "";
