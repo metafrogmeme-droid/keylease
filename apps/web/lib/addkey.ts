@@ -12,6 +12,7 @@ import {
   secretsJson,
   storeSecretsArgs,
 } from "@keylease/outlayer/web";
+import { TESTNET_ACCOUNT_RULE, isTestnetAccount } from "./account.ts";
 import type { WebConfig } from "./config.ts";
 import { view, type Fetch } from "./near-rpc.ts";
 import { baseUrlProblem, labelProblem, newProfile, type ProviderId } from "./rules.ts";
@@ -51,6 +52,8 @@ export async function keyTransactions(
   apiKey: string,
   deps: Deps = {},
 ) {
+  if (!isTestnetAccount(owner))
+    throw new Error(`The signed-in account must be ${TESTNET_ACCOUNT_RULE}; got "${String(owner)}"`);
   const problem = formProblem(form, apiKey);
   if (problem) throw new Error(problem);
   const fetcher = deps.fetcher ?? fetch;
