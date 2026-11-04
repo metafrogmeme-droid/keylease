@@ -32,11 +32,41 @@ export function testCallTx(contractId: string, leaseId: string): Tx {
   };
 }
 
-/** The decoded return value of a final outcome (`SuccessValue`), or null. */
-export function returnValue(outcome: unknown): unknown {
-  const v = (outcome as { status?: { SuccessValue?: string } } | undefined)?.status?.SuccessValue;
+/** Decodes a base64 `SuccessValue` (JSON), or null when empty. */
+function decodeB64Json(v: string | undefined): unknown {
   if (v === undefined || v === "") return null;
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(v), (c) => c.charCodeAt(0))));
+}
+
+/**
+ * The wallet contract on an eth-implicit (0x…) account answers every call with an `ExecuteResponse`
+ * (`{ success, success_value: bytes, error }`) around the real return value (nearcore
+ * runtime/near-wallet-contract, `rlp_execute_callback`). MetaMask and other EVM wallets land here.
+ */
+function isExecuteResponse(v: unknown): v is { success: boolean; success_value?: unknown; error?: unknown } {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    typeof (v as { success?: unknown }).success === "boolean" &&
+    "success_value" in v &&
+    "error" in v
+  );
+}
+
+/**
+ * The decoded return value of a final outcome (`SuccessValue`), or null. For an EVM wallet the
+ * wallet contract's `ExecuteResponse` is unwrapped; a failed inner call throws its error.
+ */
+export function returnValue(outcome: unknown): unknown {
+  const v = decodeB64Json(
+    (outcome as { status?: { SuccessValue?: string } } | undefined)?.status?.SuccessValue,
+  );
+  if (!isExecuteResponse(v)) return v;
+  if (!v.success)
+    throw new Error(typeof v.error === "string" ? v.error : "The wallet contract reported a failed call.");
+  const bytes = v.success_value;
+  if (!Array.isArray(bytes) || bytes.length === 0) return null;
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(bytes as number[])));
 }
 
 export type Verdict = { readonly ok: boolean; readonly text: string };

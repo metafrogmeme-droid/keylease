@@ -82,6 +82,25 @@ describe("key list with Test key", () => {
     });
   });
 
+  it("finishes the test with an EVM wallet (MetaMask) on a 0x account", async () => {
+    stubKeys();
+    const bytes = (v: unknown) => Array.from(new TextEncoder().encode(JSON.stringify(v)));
+    const wrap = (v: unknown, id: string) =>
+      outcome({ success: true, success_value: bytes(v), error: null }, id);
+    show(
+      wallet(
+        vi
+          .fn<WalletState["send"]>()
+          .mockResolvedValueOnce([wrap("5", "LeaseTx")])
+          .mockResolvedValueOnce([wrap({ ok: true, status: 200 }, "CallTx")]),
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Test key demo" }));
+    await waitFor(() => {
+      expect(screen.getByText(/✓ The key works: the API answered HTTP 200/)).toBeTruthy();
+    });
+  });
+
   it("explains that a redirecting wallet cannot finish the test on the page", async () => {
     stubKeys();
     show(wallet(vi.fn<WalletState["send"]>().mockResolvedValueOnce([])));
