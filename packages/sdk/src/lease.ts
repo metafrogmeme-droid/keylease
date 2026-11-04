@@ -5,6 +5,7 @@
  * (`l.subLease`, E-020) and move it to another account (`l.transfer`, the Key Pass, E-019).
  */
 import { nearTransport } from "./near.ts";
+import type { HolderSigner } from "./signer.ts";
 import { TxFailed, type Transport } from "./transport.ts";
 import { PROXY_ERRORS, REFUSALS } from "./wording.ts";
 
@@ -14,6 +15,9 @@ const CALL_TGAS = 300;
 /** Attached to `create_sub_lease` for the new lease's storage; the contract refunds what it does not use. */
 export const SUB_LEASE_DEPOSIT = 50_000_000_000_000_000_000_000n; // 0.05 NEAR
 const SMALL_TGAS = 30;
+/** How long a holder's signature stays valid by default (signed calls, E-021). */
+export const SIGNATURE_TTL_MS = 5 * 60_000;
+const MAX_SIGNATURE_TTL_MS = 60 * 60_000;
 /** Sub-leases go at most this many levels below a key owner's lease (contract `MAX_DEPTH`). */
 export const MAX_SUB_LEASE_DEPTH = 3;
 
@@ -31,6 +35,14 @@ export interface LeaseOptions {
   readonly transport?: Transport;
   /** Clock in Unix ms, for the expiry checks (tests). Default `Date.now`. */
   readonly now?: () => number;
+  /**
+   * The lease is held by an EVM address or a Solana key (E-021): this signer signs each call and a relayer
+   * account sends it. The relayer is `transport`, or KEYLEASE_RELAYER_ACCOUNT_ID and
+   * KEYLEASE_RELAYER_PRIVATE_KEY from env (a throwaway testnet key, never printed).
+   */
+  readonly signer?: HolderSigner;
+  /** How long each signature stays valid, 1 s to 1 h. Default 5 minutes. */
+  readonly signatureTtlMs?: number;
 }
 
 export interface CallOptions {
@@ -97,6 +109,8 @@ export interface LeaseStatus {
   readonly depth: number;
   /** Who created it: the key owner, or the holder of the parent lease. */
   readonly issuer: string;
+  /** Highest nonce a signed call used; the next signed call uses this + 1. */
+  readonly last_nonce: string;
 }
 
 export interface SubLeaseOptions {
@@ -235,18 +249,78 @@ export function lease(o: LeaseOptions): Lease {
   if (!o.contract.endsWith(".testnet"))
     throw new Error("KeyLease SDK: contract must be a .testnet account (testnet only)");
   if (!/^\d{1,20}$/u.test(o.leaseId)) throw new Error('KeyLease SDK: leaseId must be a number like "7"');
+  const ttl = o.signatureTtlMs ?? SIGNATURE_TTL_MS;
+  if (o.signer && !(Number.isInteger(ttl) && ttl >= 1000 && ttl <= MAX_SIGNATURE_TTL_MS))
+    throw new Error("KeyLease SDK: signatureTtlMs must be 1000 to 3600000 (1 s to 1 h)");
   let transport: Promise<Transport> | null = o.transport ? Promise.resolve(o.transport) : null;
   const t = () => {
     transport ??= (() => {
-      const account = o.account ?? env("NEAR_ACCOUNT_ID");
-      const privateKey = o.privateKey ?? env("NEAR_PRIVATE_KEY");
+      // With a holder signer the NEAR account only relays: its own env names make that plain.
+      const [accountVar, keyVar] = o.signer
+        ? ["KEYLEASE_RELAYER_ACCOUNT_ID", "KEYLEASE_RELAYER_PRIVATE_KEY"]
+        : ["NEAR_ACCOUNT_ID", "NEAR_PRIVATE_KEY"];
+      const account = o.account ?? env(accountVar);
+      const privateKey = o.privateKey ?? env(keyVar);
       if (!account || !privateKey)
-        throw new Error("KeyLease SDK: set NEAR_ACCOUNT_ID and NEAR_PRIVATE_KEY (env only)");
+        throw new Error(`KeyLease SDK: set ${accountVar} and ${keyVar} (env only)`);
       const rpc = o.rpc ?? env("NEAR_RPC_URL");
       return nearTransport({ account, privateKey, ...(rpc ? { rpc } : {}) });
     })();
     return transport;
   };
+
+  /** The holder account the signer's key maps to, as the contract maps it (lowercase 0x…, base58 → hex). */
+  let holderId: Promise<string> | null = null;
+  const holder = async (tr: Transport): Promise<string> => {
+    const sg = o.signer;
+    if (!sg) return tr.account;
+    holderId ??= tr.view<string>(
+      o.contract,
+      sg.kind === "evm" ? "evm_holder_account" : "solana_holder_account",
+      { address: sg.address },
+    );
+    return holderId;
+  };
+  const notForSigners = () => {
+    if (o.signer)
+      throw new Error(
+        "KeyLease SDK: sub-leases and transfers need the holder's own NEAR account; a signer can only call",
+      );
+  };
+
+  /** One signed call: the contract's own text, signed by the holder, sent by the relayer. */
+  async function sendSigned(
+    tr: Transport,
+    sg: HolderSigner,
+    args: { lease_id: string; endpoint: string; method: string; body?: string },
+    deposit: bigint,
+  ) {
+    const l = mustHold(
+      await tr.view<LeaseStatus | null>(o.contract, "get_lease", { lease_id: o.leaseId }),
+      await holder(tr),
+    );
+    const nonce = (BigInt(l.last_nonce) + 1n).toString();
+    const validUntil = String((o.now ?? Date.now)() + ttl);
+    // The signed text comes only from the contract; the SDK never builds it.
+    const text = await tr.view<string>(o.contract, "signed_call_message", {
+      lease_id: o.leaseId,
+      nonce,
+      valid_until_ms: validUntil,
+      method: args.method,
+      endpoint: args.endpoint,
+      ...(args.body === undefined ? {} : { body: args.body }),
+    });
+    const signature = await sg.signMessage(text);
+    const signer =
+      sg.kind === "evm" ? { Evm: { signature } } : { Solana: { public_key: sg.address, signature } };
+    return tr.call(
+      o.contract,
+      "use_lease_signed",
+      { ...args, nonce, valid_until_ms: validUntil, signer },
+      deposit,
+      CALL_TGAS,
+    );
+  }
 
   return {
     contract: o.contract,
@@ -264,7 +338,11 @@ export function lease(o: LeaseOptions): Lease {
       };
       let sent;
       try {
-        sent = await (await t()).call(o.contract, "use_lease", args, opts.deposit ?? CALL_DEPOSIT, CALL_TGAS);
+        const tr = await t();
+        const deposit = opts.deposit ?? CALL_DEPOSIT;
+        sent = o.signer
+          ? await sendSigned(tr, o.signer, args, deposit)
+          : await tr.call(o.contract, "use_lease", args, deposit, CALL_TGAS);
       } catch (e) {
         if (e instanceof TxFailed) throw failed(e, o.leaseId, "call_failed");
         throw e;
@@ -313,7 +391,7 @@ export function lease(o: LeaseOptions): Lease {
         "check_call",
         {
           lease_id: o.leaseId,
-          caller: tr.account,
+          caller: await holder(tr),
           endpoint,
         },
       );
@@ -325,6 +403,7 @@ export function lease(o: LeaseOptions): Lease {
     },
 
     async subLease(s) {
+      notForSigners();
       testnetAccount(s.grantee, "the grantee");
       if (!Number.isInteger(s.calls) || s.calls < 1)
         throw new Error("KeyLease SDK: calls must be a whole number, at least 1");
@@ -379,6 +458,7 @@ export function lease(o: LeaseOptions): Lease {
     },
 
     async transfer(receiverId, opts = {}) {
+      notForSigners();
       testnetAccount(receiverId, "the receiver");
       const tr = await t();
       mustHold(

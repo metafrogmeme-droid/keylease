@@ -3,6 +3,7 @@ export {
   CALL_DEPOSIT,
   KeyLeaseError,
   MAX_SUB_LEASE_DEPTH,
+  SIGNATURE_TTL_MS,
   SUB_LEASE_DEPOSIT,
   callNumber,
   explorer,
@@ -21,6 +22,13 @@ export {
   type SubLeaseOptions,
   type TxReceipt,
 } from "./lease.ts";
+export {
+  evmKeySigner,
+  solanaKeySigner,
+  type EvmSigner,
+  type HolderSigner,
+  type SolanaSigner,
+} from "./signer.ts";
 export { TESTNET_RPC, nearTransport, type NearOptions } from "./near.ts";
 export { TxFailed, type Sent, type Transport } from "./transport.ts";
 export { PROXY_ERRORS, REFUSALS } from "./wording.ts";
