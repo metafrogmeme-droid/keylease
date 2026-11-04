@@ -1,4 +1,5 @@
 /** Lease presets (brief §4) and the custom form's checks; the contract enforces the same limits. */
+import { parseTestnetAccount } from "./account.ts";
 
 const HOUR_NS = 3_600n * 1_000_000_000n;
 
@@ -26,7 +27,11 @@ export const MAX_CALLS = 1_000_000;
 export const MAX_HOURS = 365 * 24;
 export const MAX_ENDPOINTS = 16;
 
-export const ACCOUNT = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/u;
+/** The grantee as the form will send it: trimmed, an EVM address lowercased (lib/account.ts). */
+export function granteeId(raw: string): string {
+  const r = parseTestnetAccount(raw);
+  return "id" in r ? r.id : raw.trim();
+}
 const ENDPOINT = /^(\/[A-Za-z0-9._~-]+)+$/u;
 
 export interface LeaseForm {
@@ -38,8 +43,8 @@ export interface LeaseForm {
 
 /** What is wrong with the form, or null. Mirrors crates/keylease-rules (calls, expiry, endpoints). */
 export function leaseProblem(f: LeaseForm): string | null {
-  if (!ACCOUNT.test(f.grantee) || !f.grantee.endsWith(".testnet"))
-    return "Grantee must be a .testnet account (EVM and Solana grantees come later)";
+  const g = parseTestnetAccount(f.grantee);
+  if ("error" in g) return `Grantee: ${g.error}`;
   if (!Number.isInteger(f.calls) || f.calls < 1 || f.calls > MAX_CALLS) return "Calls must be 1 to 1,000,000";
   if (!(f.hours > 0) || f.hours > MAX_HOURS) return "Expiry must be within 365 days";
   if (f.endpoints.length < 1) return "Give at least one endpoint, like /chat/completions";

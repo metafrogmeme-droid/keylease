@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@keylease/outlayer": "workspace:*",
+    "@keylease/sdk": "workspace:*",
     "near-api-js": "^7.4.0"
   }
 }

@@ -6,6 +6,7 @@ import {
   PRESETS,
   defaultEndpoints,
   expiresAtNs,
+  granteeId,
   leaseProblem,
   parseEndpoints,
   type LeaseForm,
@@ -43,13 +44,13 @@ export function CreateLease({
   const preset = PRESETS.find((p) => p.id === choice);
   const form: LeaseForm = preset
     ? {
-        grantee: grantee.trim(),
+        grantee: granteeId(grantee),
         calls: preset.calls,
         hours: preset.hours,
         endpoints: parseEndpoints(endpoints),
       }
     : {
-        grantee: grantee.trim(),
+        grantee: granteeId(grantee),
         calls: Number(calls),
         hours: Number(hours),
         endpoints: parseEndpoints(endpoints),

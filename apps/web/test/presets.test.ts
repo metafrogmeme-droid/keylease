@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { qrPath } from "../components/Qr.tsx";
 import { leaseTx, LEASE_DEPOSIT } from "../lib/lease.ts";
-import { PRESETS, defaultEndpoints, expiresAtNs, leaseProblem, parseEndpoints } from "../lib/presets.ts";
+import {
+  parseEndpoints,
+  defaultEndpoints,
+  granteeId,
+  leaseProblem,
+  PRESETS,
+  expiresAtNs,
+} from "../lib/presets.ts";
 import { cliSnippet, leaseLink, mcpSnippet, sdkSnippet } from "../lib/snippets.ts";
 
 const OK = { grantee: "agent.testnet", calls: 100, hours: 24, endpoints: ["/chat/completions"] };
@@ -23,9 +30,20 @@ describe("presets (brief §4)", () => {
     expect(parseEndpoints(" /a, /b\n/c ")).toEqual(["/a", "/b", "/c"]);
   });
 
+  it("take EVM (0x, any case) and 64-hex implicit grantees; the form sends the lowercase id", () => {
+    const eth = "0x020a4366595292aa16184536bab2e9949d0d925f";
+    expect(leaseProblem({ ...OK, grantee: eth })).toBeNull();
+    expect(leaseProblem({ ...OK, grantee: "0x020A4366595292aa16184536BAB2e9949d0d925F" })).toBeNull();
+    expect(granteeId(" 0x020A4366595292aa16184536BAB2e9949d0d925F ")).toBe(eth);
+    expect(
+      leaseProblem({ ...OK, grantee: "98793cd91a3f870fb126f66285808c7e094afcfc4eda8a970f6648cdf0dbd6de" }),
+    ).toBeNull();
+  });
+
   it("refuse what the contract refuses", () => {
-    expect(leaseProblem({ ...OK, grantee: "agent.near" })).toMatch(/testnet/);
-    expect(leaseProblem({ ...OK, grantee: "0xabc" })).toMatch(/testnet/);
+    expect(leaseProblem({ ...OK, grantee: "agent.near" })).toMatch(/mainnet/i);
+    expect(leaseProblem({ ...OK, grantee: "0xabc" })).toMatch(/0x and 40 hex/);
+    expect(leaseProblem({ ...OK, grantee: "" })).toMatch(/Give an account/);
     expect(leaseProblem({ ...OK, calls: 0 })).toMatch(/Calls/);
     expect(leaseProblem({ ...OK, calls: 1.5 })).toMatch(/Calls/);
     expect(leaseProblem({ ...OK, calls: 1_000_001 })).toMatch(/Calls/);

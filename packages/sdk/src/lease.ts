@@ -4,6 +4,7 @@
  * code and the sentence from docs/WORDING.md. The holder can also hand on part of the lease
  * (`l.subLease`, E-020) and move it to another account (`l.transfer`, the Key Pass, E-019).
  */
+import { parseTestnetAccount } from "./account.ts";
 import { nearTransport } from "./near.ts";
 import type { HolderSigner } from "./signer.ts";
 import { TxFailed, type Transport } from "./transport.ts";
@@ -225,9 +226,11 @@ function mustHold(l: LeaseStatus | null, me: string): LeaseStatus {
   return l;
 }
 
-function testnetAccount(id: string, what: string): void {
-  if (!/^([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*\.testnet$/u.test(id))
-    throw new Error(`KeyLease SDK: ${what} must be a .testnet account (testnet only)`);
+/** A grantee or receiver by the shared rule (name.testnet, 0x + 40 hex, 64 hex), normalised. */
+function testnetAccount(id: string, what: string): string {
+  const r = parseTestnetAccount(id);
+  if ("error" in r) throw new Error(`KeyLease SDK: ${what}: ${r.error}`);
+  return r.id;
 }
 
 const msToNs = (ms: number) => (BigInt(Math.trunc(ms)) * 1_000_000n).toString();
@@ -404,7 +407,7 @@ export function lease(o: LeaseOptions): Lease {
 
     async subLease(s) {
       notForSigners();
-      testnetAccount(s.grantee, "the grantee");
+      const grantee = testnetAccount(s.grantee, "the grantee");
       if (!Number.isInteger(s.calls) || s.calls < 1)
         throw new Error("KeyLease SDK: calls must be a whole number, at least 1");
       if (s.endpoints?.length === 0) throw new Error("KeyLease SDK: a sub-lease needs at least one endpoint");
@@ -431,7 +434,7 @@ export function lease(o: LeaseOptions): Lease {
       const endpoints = [...(s.endpoints ?? p.endpoints)];
       if (!endpoints.every((e) => p.endpoints.includes(e)))
         throw new Error("KeyLease SDK: a sub-lease can only use endpoints of the lease above it");
-      const args = { parent: o.leaseId, grantee: s.grantee, calls: s.calls, expires_at: expires, endpoints };
+      const args = { parent: o.leaseId, grantee, calls: s.calls, expires_at: expires, endpoints };
       let sent;
       try {
         sent = await tr.call(
@@ -459,15 +462,15 @@ export function lease(o: LeaseOptions): Lease {
 
     async transfer(receiverId, opts = {}) {
       notForSigners();
-      testnetAccount(receiverId, "the receiver");
+      const receiver = testnetAccount(receiverId, "the receiver");
       const tr = await t();
       mustHold(
         await tr.view<LeaseStatus | null>(o.contract, "get_lease", { lease_id: o.leaseId }),
         tr.account,
       );
-      if (receiverId === tr.account) throw new Error("KeyLease SDK: this account already holds the lease");
+      if (receiver === tr.account) throw new Error("KeyLease SDK: this account already holds the lease");
       const args = {
-        receiver_id: receiverId,
+        receiver_id: receiver,
         token_id: o.leaseId,
         ...(opts.memo === undefined ? {} : { memo: opts.memo }),
       };
