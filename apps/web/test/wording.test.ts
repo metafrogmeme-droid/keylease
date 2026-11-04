@@ -7,7 +7,7 @@ const md = readFileSync(new URL("../../../docs/WORDING.md", import.meta.url), "u
 describe("web wording matches docs/WORDING.md", () => {
   it("has every refusal code with the same sentence", () => {
     const rows = [...md.matchAll(/^\| `([a-z_]+)` +\| (.+?) +\|$/gmu)].map((m) => [m[1], m[2]]);
-    expect(rows.length).toBe(9);
+    expect(rows.length).toBe(12);
     expect(Object.entries(REFUSALS)).toEqual(rows);
   });
 

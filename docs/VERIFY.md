@@ -423,6 +423,11 @@ PR #32, PR 10e), about 21:31 CET, deployed from the repo root as above (main's C
 (foreign origin); the Key Pass transfer strings of PR 10e are in the live bundle; `kl call --endpoint`
 parses its endpoint again (#32). The transfer itself needs a contract with Key Pass (step 10).
 
+_Run 2026-11-03_ (Patrick), deploy `dpl_EJAJ3Z88BbfimY7JjwUNV7DvZ18u` of `main` at `5192aca` (PR 10f), about 21:38
+CET (main's CI run `41713509190` green, 116 web tests): the same header, `/mock` (401 without the key, 403
+from a foreign origin) and relay (200 / 400 / 403) checks pass; the sub-lease tree and the Key Pass transfer
+strings are in the live bundle. Both need a contract from `main` to show live data (steps 10, 11).
+
 Then run "Web app, by hand" steps 1-9 on `https://<app>` instead of the local server.
 
 ## Attestation (PR 12, planned)

@@ -130,7 +130,9 @@ Components (monorepo, pnpm + cargo workspace):
   refunded), `on_result` (private callback), views `get_lease`, `list_leases_by_owner`, `list_receipts`.
   Key Pass: NEP-171 core + enumeration via `near-contract-standards`; `nft_transfer` re-points the lease
   grantee; old holder refused on next `use_lease`.
-- **Any-chain grantees/owners**: grantee type `Near(AccountId) | Evm(0x…) | Solana(base58)`. EVM/Solana
+- **Any-chain grantees/owners** (as built: E-021 replaces the separate grantee type with NEAR account ids,
+  `0x…` eth-implicit for EVM and the 64-hex implicit account for Solana; the signed message also names
+  the network, the contract, a valid-until time and the request): grantee type `Near(AccountId) | Evm(0x…) | Solana(base58)`. EVM/Solana
   holders call via a relayer-free path: they sign an EIP-191 / ed25519 message `keylease:{lease_id}:{nonce}:{body_hash}`;
   the contract checks it with `env::ecrecover` / `env::ed25519_verify` and a per-lease nonce. Gas is paid by the
   caller account (any testnet account; the SDK can use a throwaway function-call key). MetaMask users who want a

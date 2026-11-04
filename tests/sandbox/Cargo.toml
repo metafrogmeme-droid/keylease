@@ -13,6 +13,11 @@ near-workspaces = "0.24"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde_json = "1"
 anyhow = "1"
+# Signing as an EVM and a Solana holder (signed calls, E-021); same versions as Cargo.lock pins.
+secp256k1 = { version = "0.27", features = ["recovery"] }
+ed25519-dalek = "2.2"
+sha3 = "0.10"
+bs58 = "0.5"
 
 [lints]
 workspace = true

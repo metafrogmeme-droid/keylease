@@ -12,6 +12,10 @@ export const REFUSALS: Readonly<Record<string, string>> = {
     "A lease above this one was revoked; ask the agent that shared it with you for a new lease.",
   parent_quota_used: "A lease above this one has no calls left; ask the agent that shared it with you.",
   lease_not_found: "No lease has this id; check the lease id you were given.",
+  bad_signature:
+    "The signature does not match this call; sign the exact request again with the holder's wallet.",
+  nonce_used: "This signed call was already used; sign it again with a higher nonce.",
+  signature_expired: "This signed call is past its valid-until time; sign it again.",
 };
 
 export const PROXY_ERRORS: Readonly<Record<string, string>> = {
