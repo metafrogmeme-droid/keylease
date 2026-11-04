@@ -351,10 +351,12 @@ both the measured run and a human estimate (4 s per click or field) stay under 6
 
 Vercel Hobby, from this repo. Patrick logs in and deploys; nothing here holds a Vercel token.
 
-**Live:** `https://keylease.vercel.app` (project `rune-claw/keylease`, Root Directory `apps/web`, prebuilt
-deploys). Checked on it: the demo API at `/mock` (step 2c), the demo key sealed against it (step 4), the
-attack run, and the header, relay and leased-call checks below (_Run 2026-11-03_). Still open: the
-real-wallet run ("Web app, by hand" steps 1-9 on this URL).
+**Live:** `https://keylease.humanoid-traders.com` (project `rune-claw/keylease`, Root Directory `apps/web`,
+prebuilt deploys). Mirror: `https://keylease.vercel.app`, same deploy. Use the custom domain: MetaMask's
+phishing scanner flags `*.vercel.app` hosts, so the mirror can be blocked in the MetaMask browser. Checked on
+it: the demo API at `/mock` (step 2c), the demo key sealed against it (step 4), the attack run, the header,
+relay and leased-call checks below (_Run 2026-11-03_), and the real-wallet run from MetaMask mobile
+(_Run 2026-11-04_ below).
 
 Project settings (once): **Root Directory** `apps/web`, **Framework Preset** Other, **Node.js** 22.x.
 `apps/web/vercel.json` sets the install and build commands; the build writes `.vercel/output` (Build
@@ -431,6 +433,20 @@ _Run 2026-11-03_ (Patrick), deploy `dpl_EJAJ3Z88BbfimY7JjwUNV7DvZ18u` of `main` 
 CET (main's CI run `41713509190` green, 116 web tests): the same header, `/mock` (401 without the key, 403
 from a foreign origin) and relay (200 / 400 / 403) checks pass; the sub-lease tree and the Key Pass transfer
 strings are in the live bundle. Both need a contract from `main` to show live data (steps 10, 11).
+
+_Run 2026-11-04_ (Patrick), real wallet: MetaMask mobile in-app browser on `https://keylease.humanoid-traders.com`,
+NEAR testnet, eth-implicit owner `0x020a4366595292aa16184536bab2e9949d0d925f` (wallet selector
+`ethereum-wallets`), contract `keylease.keylease-spike-3298edc1.testnet`. Fixes behind it: PRs #39 to #45
+(eth-wallet sign-in, 0x owners in the relay and contract config, the confirm box, and reading results through
+the 0x wallet contract, including answers over its 16 KiB limit). Times are CET.
+
+| Step                                   | Result                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in                                | MetaMask connected, account `0x020a…925f`                                                                                                                                                                                                                              |
+| Seal and add key (2 txs, about 11:57)  | [`store_secrets` tx](https://testnet.nearblocks.io/txns/BS731z5J8d96ywfiByrbdf7tGbWFGxHSKa3U53PQw9Db) on `outlayer.testnet`, then [`add_key` tx](https://testnet.nearblocks.io/txns/27LFy9GjNwtDKTo7EFb5UWpLXEyZzbBahPn87uVhb6m7): `key_added`, key 2                  |
+| Test key: lease (12:17)                | [`create_lease` tx](https://testnet.nearblocks.io/txns/6QbTYRjFw4GCwkD33rAULmdcKj4zPuwPQosubZhiCnwh): `lease_created`, lease 5 on key 2, one call on `/models`                                                                                                         |
+| Test key: call (12:17)                 | [`use_lease` tx](https://testnet.nearblocks.io/txns/5ScPvDkcgzznNaaFswer9T7FAuD3TX33LdZFbK7DMXch): OutLayer request 8723, `call_completed` outcome `ok`, HTTP 200 (the page showed "no answer": the 16.8 KB answer was over the wallet contract's limit, fixed in #45) |
+| Test key again after #45 (13:01-13:02) | [`create_lease` tx](https://testnet.nearblocks.io/txns/8LmmCyZnFMLFznNPK2JjFwBxxgEvfCMMLPy84MBjUAU7) (lease 6), [`use_lease` tx](https://testnet.nearblocks.io/txns/Ht379Q5rASPdDTYi2qEwCierWyV9MMcna6xEMCLQd53P): OutLayer request 8745, outcome `ok`, HTTP 200       |
 
 Then run "Web app, by hand" steps 1-9 on `https://<app>` instead of the local server.
 
