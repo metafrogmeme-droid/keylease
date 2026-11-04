@@ -7,6 +7,17 @@ import type { WebConfig } from "./config.ts";
 import { installRpcRetry, RPC_URLS } from "./near-rpc.ts";
 import { NEAR_TESTNET_EVM_CHAIN, NETWORK } from "./wallets.ts";
 
+/**
+ * ethereum-wallets 10.1.4 hands `nearNodeUrl` straight to `new JsonRpcProvider(...)`, but
+ * @near-js/providers 2.x wants `{ url }`: a plain string leaves `connection.url` undefined, so its
+ * `view_access_key` check fails ("Failed to parse URL from undefined") and MetaMask sign-in stops with
+ * "Failed to view the relayer public key (view_access_key)". Pass the object the provider reads; the
+ * library's type says string, hence the cast.
+ */
+export function ethNearNode(url: string): string {
+  return { url } as unknown as string;
+}
+
 export async function createSelector(cfg: WebConfig): Promise<WalletSelector> {
   // Timing-test builds only: next.config.ts points @keylease/test-wallet at a throwing stub otherwise.
   if (process.env["NEXT_PUBLIC_KL_E2E"] === "1")
@@ -40,7 +51,7 @@ export async function createSelector(cfg: WebConfig): Promise<WalletSelector> {
       wagmiConfig,
       wagmiCore: wagmi,
       chainId: NEAR_TESTNET_EVM_CHAIN,
-      nearNodeUrl: cfg.rpcUrl,
+      nearNodeUrl: ethNearNode(cfg.rpcUrl),
     }),
   ];
   if (cfg.reownProjectId !== null) {
