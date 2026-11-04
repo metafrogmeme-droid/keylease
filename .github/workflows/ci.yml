@@ -113,6 +113,9 @@ jobs:
       - name: Playwright (timing test, release check, smoke)
         if: steps.changes.outputs.full == 'true' && steps.changes.outputs.web == 'true'
         working-directory: apps/web
+        # lib/config.ts fails the build without a contract id (no silent fallback); e2e mocks the RPC.
+        env:
+          NEXT_PUBLIC_KEYLEASE_CONTRACT_ID: keylease.testnet
         # Timing test on the test-wallet build, then the release build: no test wallet, smoke tests.
         run: |
           pnpm exec playwright install --only-shell chromium

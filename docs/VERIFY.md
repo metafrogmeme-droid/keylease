@@ -367,6 +367,10 @@ variables (Production and Preview):
 | `NEXT_PUBLIC_KEYLEASE_CONTRACT_ID` | `keylease.<you>.testnet`                  |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID`     | empty (WalletConnect off, E-016)          |
 
+`NEXT_PUBLIC_KEYLEASE_CONTRACT_ID` must be present in the env of the build itself (`vercel build` for a
+prebuilt deploy, or pass it inline): it is baked into the JS, and a build without it now fails with
+"NEXT_PUBLIC_KEYLEASE_CONTRACT_ID is not set" instead of silently pointing at a nonexistent contract.
+
 Run the CLI from the **repo root**, without `--cwd apps/web`: the project's Root Directory is already
 `apps/web`, so `--cwd apps/web` makes the CLI look for `apps/web/apps/web` and stop with "does not exist".
 `.vercel/` (the link and the build output) is git-ignored.

@@ -5,5 +5,9 @@ export default defineConfig({
   resolve: {
     alias: { "@keylease/test-wallet": new URL("./lib/no-test-wallet.ts", import.meta.url).pathname },
   },
-  test: { include: ["test/**/*.test.{ts,tsx}"] },
+  test: {
+    include: ["test/**/*.test.{ts,tsx}"],
+    // lib/config.ts has no contract-id fallback any more; tests run against a fixed testnet id.
+    env: { NEXT_PUBLIC_KEYLEASE_CONTRACT_ID: "keylease.testnet" },
+  },
 });
