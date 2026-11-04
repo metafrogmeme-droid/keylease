@@ -29,7 +29,13 @@ const ACCOUNT = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)
 export function parseConfig(raw: RawEnv): WebConfig {
   const network = raw.network?.trim() || "testnet";
   if (network !== "testnet") throw new Error(`NEXT_PUBLIC_NEAR_NETWORK must be testnet, got "${network}"`);
-  const contractId = raw.contractId?.trim() || "keylease.testnet";
+  // No fallback: a build without the contract id used to point at "keylease.testnet", which does not exist,
+  // and the app only failed later with UNKNOWN_ACCOUNT on get_config (4 Nov). Fail the build instead.
+  const contractId = raw.contractId?.trim() ?? "";
+  if (contractId === "")
+    throw new Error(
+      "NEXT_PUBLIC_KEYLEASE_CONTRACT_ID is not set: set it (e.g. keylease.<you>.testnet) in the env of `next build` / `vercel build`",
+    );
   if (!ACCOUNT.test(contractId) || !contractId.endsWith(".testnet"))
     throw new Error(`NEXT_PUBLIC_KEYLEASE_CONTRACT_ID must be a .testnet account, got "${contractId}"`);
   const reown = raw.reownProjectId?.trim() ?? "";
