@@ -10,6 +10,7 @@ mod check;
 mod events;
 mod nft;
 mod run;
+mod signed;
 mod sub;
 mod views;
 
@@ -21,6 +22,8 @@ mod tests;
 mod tests_nft;
 #[cfg(test)]
 mod tests_run;
+#[cfg(test)]
+mod tests_signed;
 #[cfg(test)]
 mod tests_sub;
 
@@ -111,6 +114,8 @@ pub struct Lease {
     pub issuer: AccountId,
     /// Sub-leases handed on from this lease (at most `MAX_CHILDREN`).
     pub children: Vec<u64>,
+    /// Highest nonce of a signed call so far (`use_lease_signed`); a new one must be above it.
+    pub last_nonce: u64,
     /// Block time of creation, ns.
     pub created_at: u64,
 }
@@ -280,6 +285,7 @@ impl KeyLease {
             depth: 0,
             issuer: owner.clone(),
             children: Vec::new(),
+            last_nonce: 0,
             created_at: env::block_timestamp(),
         };
         events::lease_created(id, &lease);

@@ -51,6 +51,8 @@ pub struct LeaseView {
     pub parent: Option<U64>,
     pub depth: u8,
     pub issuer: AccountId,
+    /// Highest nonce a signed call used; the next signed call needs a higher one.
+    pub last_nonce: U64,
 }
 
 /// Answer of `check_call`: would this call pass right now, and if not, why and what to do.
@@ -149,6 +151,7 @@ impl KeyLease {
             parent: l.parent.map(U64),
             depth: l.depth,
             issuer: l.issuer.clone(),
+            last_nonce: U64(l.last_nonce),
         }
     }
 

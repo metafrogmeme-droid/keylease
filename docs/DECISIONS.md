@@ -192,7 +192,7 @@ from crates.io stays as the fallback.
 ### E-018 (PR 8) Leases, Share, panic button, timing test
 
 - Presets as in the brief; Custom opens calls, expiry and endpoints. "Price per call" waits for a contract
-  field (none today). Grantees are `.testnet` accounts until PR 11 (EVM, Solana).
+  field (none today). Grantees are `.testnet` accounts until PR 11 (EVM, Solana; E-021).
 - Share gives a link, a QR code (drawn as one SVG path from `qrcode-generator`, no HTML strings) and three
   copy buttons. The brief's curl snippet is a `near` CLI command instead: a plain curl cannot sign the
   NEAR transaction a leased call is (curl comes with the HTTPS mode, PR 14). SDK and MCP snippets name the
@@ -232,3 +232,35 @@ from crates.io stays as the fallback.
 - The key owner may revoke any lease in the tree; the issuer of a sub-lease may revoke it. Sub-leases are
   not transferable (a Key Pass is the owner's choice, E-019) and their storage is paid by the issuer.
 - Web tree view and SDK `lease.subLease()` are not in this PR.
+
+### E-021 (PR 11a) EVM and Solana holders are NEAR account ids; signed calls
+
+- Deviation from BUILD_BRIEF §components ("grantee type `Near | Evm | Solana`"), decided by Patrick: there is
+  no separate holder type. An EVM address holds a lease as its eth-implicit account (`0x` + 40 lowercase
+  hex); a Solana key as its NEAR implicit account (64 lowercase hex of the ed25519 public key, the base58
+  address decoded). The Key Pass owner, the indexes, transfers and sub-leases work unchanged, and a MetaMask
+  user connected through NEAR's ethereum-wallets module simply _is_ that `0x…` account (plain `use_lease`).
+- `use_lease_signed(lease_id, endpoint, method, body, nonce, valid_until_ms, signer)`: the holder signs,
+  any testnet account sends and pays (deposit, gas; OutLayer refunds unused compute to it). The call counts
+  for the holder and its receipt names the holder.
+- The contract derives the holder from the signature, never from an argument: EVM via EIP-191
+  `personal_sign` and `env::ecrecover` (65-byte r‖s‖v, v 27/28 or 0/1, high `s` refused per EIP-2), then
+  keccak of the recovered key; Solana via `env::ed25519_verify` against the given public key, whose hex is
+  the holder. A valid signature from any other key derives another account: `not_lease_holder`.
+- The signed text (`signed_call_message` view returns it) names the network `near-testnet`, the contract
+  id, the lease, the nonce, a valid-until time in Unix ms, the method and endpoint, and the body's sha256,
+  as plain lines a wallet shows. Replays: the nonce must be above the lease's `last_nonce`
+  (`nonce_used`), the time must not be past (`signature_expired`), and a signature for another contract,
+  network, lease or request recovers a different account. EIP-191 rather than EIP-712: it is what every
+  wallet's `personal_sign` and Solana's `signMessage` show as readable text, with one format for both.
+- Views `evm_holder_account(address)` (any letter case, EIP-55 too) and `solana_holder_account(base58)` give
+  clients the holder id to lease to.
+- The three new codes (`bad_signature`, `nonce_used`, `signature_expired`, docs/WORDING.md) are a separate
+  `SignedRefusal` type in `keylease-reasons`, not new `Refusal` variants: the proxy matches on `Refusal`, so
+  new variants would change its bytes and the sha256 every key is locked to. The proxy still builds to
+  `95385bd1…`.
+- `env::ecrecover` needs near-sdk's `unstable` feature, which only exports more API; the host function is a
+  stable protocol function.
+- The lease record gains `last_nonce`, so this contract cannot upgrade one deployed before PR 10 in place
+  (the layout differs since PR 10); testnet gets a new contract id (README upgrade policy).
+- SDK signers (11b) and the web flow (11c) follow.

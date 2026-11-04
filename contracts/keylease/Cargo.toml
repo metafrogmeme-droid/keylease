@@ -12,12 +12,21 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-near-sdk = "5.30"
+# "unstable" only exports more API; we use it for env::ecrecover (signed EVM calls, E-021). The
+# ecrecover host function itself is a stable protocol function.
+near-sdk = { version = "5.30", features = ["unstable"] }
 keylease-reasons = { path = "../../crates/keylease-reasons" }
 keylease-rules = { path = "../../crates/keylease-rules" }
 
 [dev-dependencies]
-near-sdk = { version = "5.30", features = ["unit-testing"] }
+near-sdk = { version = "5.30", features = ["unit-testing", "unstable"] }
+# Signing in tests only (signed calls, PR 11a); the contract itself verifies with env::ecrecover and
+# env::ed25519_verify. Same versions as near-workspaces already pins in Cargo.lock.
+secp256k1 = { version = "0.27", features = ["recovery"] }
+ed25519-dalek = "2.2"
+sha3 = "0.10"
+bs58 = "0.5"
+
 
 [lints]
 workspace = true

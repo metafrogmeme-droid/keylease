@@ -78,6 +78,7 @@ impl KeyLease {
             depth: p.depth + 1,
             issuer: caller.clone(),
             children: Vec::new(),
+            last_nonce: 0,
             created_at: env::block_timestamp(),
         };
         let owner = p.owner.clone();

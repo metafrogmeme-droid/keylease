@@ -92,10 +92,54 @@ impl Refusal {
     }
 }
 
+/// Why a signed call (an EVM or Solana holder, E-021) was refused before any lease rule ran. Kept apart
+/// from [`Refusal`] on purpose: the proxy build only knows `Refusal`, so adding these codes leaves its
+/// bytes, and the sha256 keys are locked to, unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SignedRefusal {
+    /// The signature does not verify for the message.
+    BadSignature,
+    /// The nonce is not above the lease's last one (replay).
+    NonceUsed,
+    /// The valid-until time has passed.
+    SignatureExpired,
+}
+
+impl SignedRefusal {
+    /// Every signed-call refusal, in display order (after [`Refusal::ALL`] in docs/WORDING.md).
+    pub const ALL: [SignedRefusal; 3] = [
+        SignedRefusal::BadSignature,
+        SignedRefusal::NonceUsed,
+        SignedRefusal::SignatureExpired,
+    ];
+
+    /// Machine-readable code, stable across releases. Lowercase `snake_case`.
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            SignedRefusal::BadSignature => "bad_signature",
+            SignedRefusal::NonceUsed => "nonce_used",
+            SignedRefusal::SignatureExpired => "signature_expired",
+        }
+    }
+
+    /// One sentence telling the holder what to do next.
+    #[must_use]
+    pub const fn hint(self) -> &'static str {
+        match self {
+            SignedRefusal::BadSignature => {
+                "The signature does not match this call; sign the exact request again with the holder's wallet."
+            }
+            SignedRefusal::NonceUsed => "This signed call was already used; sign it again with a higher nonce.",
+            SignedRefusal::SignatureExpired => "This signed call is past its valid-until time; sign it again.",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use super::Refusal;
+    use super::{Refusal, SignedRefusal};
     use std::collections::BTreeSet;
     use std::string::String;
     use std::vec::Vec;
@@ -113,12 +157,22 @@ mod tests {
             assert_eq!(Refusal::from_code(c), Some(r));
         }
         assert_eq!(Refusal::from_code("unknown"), None);
+        for r in SignedRefusal::ALL {
+            let c = r.code();
+            assert!(seen.insert(c), "duplicate code {c}");
+            assert!(c.bytes().all(|b| b.is_ascii_lowercase() || b == b'_'));
+            assert_eq!(
+                Refusal::from_code(c),
+                None,
+                "a signed-call code is not a lease refusal"
+            );
+        }
     }
 
     #[test]
     fn hints_are_one_sentence() {
-        for r in Refusal::ALL {
-            let h = r.hint();
+        let all = Refusal::ALL.map(Refusal::hint);
+        for h in all.into_iter().chain(SignedRefusal::ALL.map(SignedRefusal::hint)) {
             assert!(h.ends_with('.'), "{h}");
             assert_eq!(h.matches(". ").count(), 0, "more than one sentence: {h}");
             assert!(h.len() <= 120, "hint too long: {h}");
@@ -137,10 +191,15 @@ mod tests {
                 Some((String::from(code), String::from(*cells.get(2)?)))
             })
             .collect();
-        assert_eq!(rows.len(), Refusal::ALL.len(), "WORDING.md refusal table size");
-        for (r, (code, hint)) in Refusal::ALL.iter().zip(rows.iter()) {
-            assert_eq!(r.code(), code);
-            assert_eq!(r.hint(), hint);
+        let code: Vec<(&str, &str)> = Refusal::ALL
+            .iter()
+            .map(|r| (r.code(), r.hint()))
+            .chain(SignedRefusal::ALL.iter().map(|r| (r.code(), r.hint())))
+            .collect();
+        assert_eq!(rows.len(), code.len(), "WORDING.md refusal table size");
+        for ((c, h), (code, hint)) in code.iter().zip(rows.iter()) {
+            assert_eq!(c, code);
+            assert_eq!(h, hint);
         }
     }
 }

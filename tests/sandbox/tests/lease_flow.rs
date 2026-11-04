@@ -368,3 +368,177 @@ async fn revoking_a_parent_refuses_its_sub_lease_in_the_same_call() -> anyhow::R
     );
     Ok(())
 }
+
+/// alice leases 2 calls on /v1/chat to `holder` (an EVM or Solana holder account) for one hour.
+async fn lease_to(w: &World, holder: &str) -> anyhow::Result<String> {
+    let key: String = w
+        .alice
+        .call(w.kl.id(), "add_key")
+        .args_json(
+            json!({ "provider": "NearAiCloud", "base_url": "https://cloud-api.near.ai",
+                           "secret_profile": "main", "label": "demo" }),
+        )
+        .deposit(NearToken::from_millinear(100))
+        .transact()
+        .await?
+        .into_result()?
+        .json()?;
+    let now_ns = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos(),
+    )?;
+    Ok(w.alice
+        .call(w.kl.id(), "create_lease")
+        .args_json(json!({ "key_id": key, "grantee": holder, "calls": 2,
+                           "expires_at": (now_ns + 3_600_000_000_000).to_string(), "endpoints": ["/v1/chat"] }))
+        .deposit(NearToken::from_millinear(100))
+        .transact()
+        .await?
+        .into_result()?
+        .json()?)
+}
+
+/// mallory sends a signed call for the holder. Ok(answer) or Err(failure text).
+async fn relay(
+    w: &World,
+    lease: &str,
+    nonce: u64,
+    until: u64,
+    signer: Value,
+) -> anyhow::Result<Result<Value, String>> {
+    let out = w
+        .mallory
+        .call(w.kl.id(), "use_lease_signed")
+        .args_json(json!({ "lease_id": lease, "endpoint": "/v1/chat", "body": "{\"q\":\"hello\"}",
+                           "nonce": nonce.to_string(), "valid_until_ms": until.to_string(), "signer": signer }))
+        .deposit(NearToken::from_millinear(30))
+        .gas(Gas::from_tgas(300))
+        .transact()
+        .await?;
+    Ok(match out.into_result() {
+        Ok(ok) => Ok(ok.json()?),
+        Err(e) => Err(format!("{e:?}")),
+    })
+}
+
+async fn message(w: &World, lease: &str, nonce: u64, until: u64) -> anyhow::Result<String> {
+    Ok(w.kl
+        .view("signed_call_message")
+        .args_json(
+            json!({ "lease_id": lease, "nonce": nonce.to_string(), "valid_until_ms": until.to_string(),
+                           "endpoint": "/v1/chat", "body": "{\"q\":\"hello\"}" }),
+        )
+        .await?
+        .json()?)
+}
+
+fn hex(b: &[u8]) -> String {
+    b.iter().fold(String::new(), |mut s, x| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{x:02x}");
+        s
+    })
+}
+
+/// EIP-191 `personal_sign` with a throwaway test key, as a wallet returns it (r, s, v = 27/28).
+fn evm_sign(sk: &secp256k1::SecretKey, msg: &str) -> String {
+    use sha3::Digest;
+    let mut prefixed = format!("\x19Ethereum Signed Message:\n{}", msg.len()).into_bytes();
+    prefixed.extend_from_slice(msg.as_bytes());
+    let digest: [u8; 32] = sha3::Keccak256::digest(&prefixed).into();
+    let m = secp256k1::Message::from_slice(&digest).unwrap_or_else(|_| unreachable!());
+    let (rec, sig) = secp256k1::Secp256k1::new()
+        .sign_ecdsa_recoverable(&m, sk)
+        .serialize_compact();
+    format!(
+        "0x{}{:02x}",
+        hex(&sig),
+        u8::try_from(rec.to_i32()).unwrap_or_default() + 27
+    )
+}
+
+#[tokio::test]
+async fn evm_and_solana_holders_call_through_a_relayer_and_replay_is_refused() -> anyhow::Result<()> {
+    use ed25519_dalek::Signer as _;
+    use sha3::Digest;
+    let w = world().await?;
+    let until = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis(),
+    )? + 600_000;
+
+    // EVM holder: the contract maps the (checksummed) address to its eth-implicit account.
+    let sk = secp256k1::SecretKey::from_slice(&[0x11; 32])?;
+    let pk = sk
+        .public_key(&secp256k1::Secp256k1::new())
+        .serialize_uncompressed();
+    let address = format!("0x{}", hex(&sha3::Keccak256::digest(&pk[1..])[12..]));
+    let holder: String =
+        w.kl.view("evm_holder_account")
+            .args_json(json!({ "address": address.to_uppercase().replace("0X", "0x") }))
+            .await?
+            .json()?;
+    assert_eq!(holder, address);
+    let id = lease_to(&w, &holder).await?;
+    let sig = evm_sign(&sk, &message(&w, &id, 1, until).await?);
+    let answer = relay(&w, &id, 1, until, json!({ "Evm": { "signature": sig } }))
+        .await?
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(answer["ok"], true);
+    let r = receipt(&w, &id, 1).await?;
+    assert_eq!(
+        (r["caller"].as_str(), r["outcome"].as_str()),
+        (Some(holder.as_str()), Some("ok"))
+    );
+    let sent: Vec<String> = w.mock.view("requests").await?.json()?;
+    let req: Value = serde_json::from_str(&sent[0])?;
+    assert_eq!(
+        req["payer_account_id"],
+        w.mallory.id().as_str(),
+        "the relayer pays and gets the refund"
+    );
+
+    // The same signed call again: refused, nothing more reaches OutLayer.
+    let replay = relay(&w, &id, 1, until, json!({ "Evm": { "signature": sig } }))
+        .await?
+        .err()
+        .unwrap_or_default();
+    assert!(replay.contains("nonce_used"), "{replay}");
+    // A valid signature from another key is not the holder's.
+    let other = secp256k1::SecretKey::from_slice(&[0x22; 32])?;
+    let stranger = evm_sign(&other, &message(&w, &id, 2, until).await?);
+    let refused = relay(&w, &id, 2, until, json!({ "Evm": { "signature": stranger } }))
+        .await?
+        .err()
+        .unwrap_or_default();
+    assert!(refused.contains("not_lease_holder"), "{refused}");
+
+    // Solana holder: the base58 address maps to the 64-hex implicit account.
+    let k = ed25519_dalek::SigningKey::from_bytes(&[0x33; 32]);
+    let sol = bs58::encode(k.verifying_key().to_bytes()).into_string();
+    let sol_holder: String =
+        w.kl.view("solana_holder_account")
+            .args_json(json!({ "address": sol }))
+            .await?
+            .json()?;
+    assert_eq!(sol_holder, hex(&k.verifying_key().to_bytes()));
+    let sid = lease_to(&w, &sol_holder).await?;
+    let m = message(&w, &sid, 1, until).await?;
+    let signature = bs58::encode(k.sign(m.as_bytes()).to_bytes()).into_string();
+    let answer = relay(
+        &w,
+        &sid,
+        1,
+        until,
+        json!({ "Solana": { "public_key": sol, "signature": signature } }),
+    )
+    .await?
+    .map_err(anyhow::Error::msg)?;
+    assert_eq!(answer["ok"], true);
+    assert_eq!(receipt(&w, &sid, 1).await?["caller"], sol_holder.as_str());
+    let sent: Vec<String> = w.mock.view("requests").await?.json()?;
+    assert_eq!(sent.len(), 2, "only the two good calls reached OutLayer");
+    Ok(())
+}

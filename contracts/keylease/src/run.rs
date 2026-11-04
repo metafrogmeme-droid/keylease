@@ -154,85 +154,7 @@ impl KeyLease {
             refuse(r);
         }
         let method = method.unwrap_or_else(|| "POST".to_owned());
-        require!(
-            method == "GET" || method == "POST",
-            "bad_input: method must be GET or POST."
-        );
-        let body = body.unwrap_or_default();
-        require!(
-            body.len() <= MAX_BODY,
-            "body_too_large: The request body is over 64 KB; send a smaller request."
-        );
-        require!(
-            method == "POST" || body.is_empty(),
-            "bad_input: A GET request cannot carry a body."
-        );
-        let attached = env::attached_deposit();
-        require!(
-            attached >= MIN_DEPOSIT,
-            format!("attach at least {MIN_DEPOSIT} for OutLayer and the receipt; unused compute is refunded")
-        );
-
-        let lease = self
-            .leases
-            .get_mut(&lease_id.0)
-            .unwrap_or_else(|| refuse(Refusal::LeaseNotFound));
-        lease.calls_used += 1;
-        let call = lease.calls_used;
-        let allowed = lease.endpoints.clone();
-        let mut up = lease.parent;
-        let key_id = lease.key_id;
-        // The call counts on every lease above a sub-lease too (check_internal allowed each of them).
-        while let Some(id) = up {
-            let p = self
-                .leases
-                .get_mut(&id)
-                .unwrap_or_else(|| refuse(Refusal::ParentRevoked));
-            p.calls_used += 1;
-            up = p.parent;
-        }
-        let key = self
-            .keys
-            .get(&key_id)
-            .unwrap_or_else(|| refuse(Refusal::LeaseRevoked));
-
-        let input = json!({
-            "v": 1, "lease_id": lease_id.0.to_string(), "provider": key.provider, "base_url": key.base_url,
-            "allowed": allowed, "endpoint": endpoint, "method": method, "body": body,
-        })
-        .to_string();
-        let input_sha256 = sha256_hex(input.as_bytes());
-        let args = json!({
-            "source": { "WasmUrl": {
-                "url": self.config.proxy_url, "hash": self.config.proxy_hash, "build_target": "wasm32-wasip2",
-            } },
-            "resource_limits": { "max_instructions": 1_000_000_000_u64, "max_memory_mb": 128, "max_execution_seconds": 30 },
-            "input_data": input,
-            "secrets_ref": { "profile": key.secret_profile, "account_id": key.owner },
-            "response_format": "Json",
-            "payer_account_id": caller,
-        });
-        events::call_authorized(lease_id.0, &caller, &endpoint, call);
-        Promise::new(self.config.outlayer.clone())
-            .function_call_weight(
-                "request_execution".to_owned(),
-                args.to_string().into_bytes(),
-                attached.saturating_sub(RECEIPT_RESERVE),
-                OUTLAYER_GAS,
-                GasWeight(1),
-            )
-            .then(
-                Self::ext(env::current_account_id())
-                    .with_static_gas(CALLBACK_GAS)
-                    .on_result(CallInfo {
-                        lease_id,
-                        call,
-                        caller,
-                        endpoint,
-                        method,
-                        input_sha256,
-                    }),
-            )
+        self.start_call(lease_id, caller, endpoint, method, body.unwrap_or_default())
     }
 
     /// OutLayer's answer comes back here: store the receipt, emit an event, pass the answer on.
@@ -303,5 +225,99 @@ impl KeyLease {
             .take(take as usize)
             .filter_map(|c| self.receipts.get(&(lease_id.0, c)).cloned())
             .collect()
+    }
+}
+
+impl KeyLease {
+    /// Start one call that `check_internal` allowed for `caller` (the holder): use it on the lease and
+    /// every lease above, ask OutLayer to run the proxy, and record the receipt in `on_result`. The
+    /// sender (predecessor) pays and gets OutLayer's refund; the receipt names the holder.
+    pub(crate) fn start_call(
+        &mut self,
+        lease_id: U64,
+        caller: AccountId,
+        endpoint: String,
+        method: String,
+        body: String,
+    ) -> Promise {
+        let payer = env::predecessor_account_id();
+        require!(
+            method == "GET" || method == "POST",
+            "bad_input: method must be GET or POST."
+        );
+        require!(
+            body.len() <= MAX_BODY,
+            "body_too_large: The request body is over 64 KB; send a smaller request."
+        );
+        require!(
+            method == "POST" || body.is_empty(),
+            "bad_input: A GET request cannot carry a body."
+        );
+        let attached = env::attached_deposit();
+        require!(
+            attached >= MIN_DEPOSIT,
+            format!("attach at least {MIN_DEPOSIT} for OutLayer and the receipt; unused compute is refunded")
+        );
+
+        let lease = self
+            .leases
+            .get_mut(&lease_id.0)
+            .unwrap_or_else(|| refuse(Refusal::LeaseNotFound));
+        lease.calls_used += 1;
+        let call = lease.calls_used;
+        let allowed = lease.endpoints.clone();
+        let mut up = lease.parent;
+        let key_id = lease.key_id;
+        // The call counts on every lease above a sub-lease too (check_internal allowed each of them).
+        while let Some(id) = up {
+            let p = self
+                .leases
+                .get_mut(&id)
+                .unwrap_or_else(|| refuse(Refusal::ParentRevoked));
+            p.calls_used += 1;
+            up = p.parent;
+        }
+        let key = self
+            .keys
+            .get(&key_id)
+            .unwrap_or_else(|| refuse(Refusal::LeaseRevoked));
+
+        let input = json!({
+            "v": 1, "lease_id": lease_id.0.to_string(), "provider": key.provider, "base_url": key.base_url,
+            "allowed": allowed, "endpoint": endpoint, "method": method, "body": body,
+        })
+        .to_string();
+        let input_sha256 = sha256_hex(input.as_bytes());
+        let args = json!({
+            "source": { "WasmUrl": {
+                "url": self.config.proxy_url, "hash": self.config.proxy_hash, "build_target": "wasm32-wasip2",
+            } },
+            "resource_limits": { "max_instructions": 1_000_000_000_u64, "max_memory_mb": 128, "max_execution_seconds": 30 },
+            "input_data": input,
+            "secrets_ref": { "profile": key.secret_profile, "account_id": key.owner },
+            "response_format": "Json",
+            "payer_account_id": payer,
+        });
+        events::call_authorized(lease_id.0, &caller, &endpoint, call);
+        Promise::new(self.config.outlayer.clone())
+            .function_call_weight(
+                "request_execution".to_owned(),
+                args.to_string().into_bytes(),
+                attached.saturating_sub(RECEIPT_RESERVE),
+                OUTLAYER_GAS,
+                GasWeight(1),
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(CALLBACK_GAS)
+                    .on_result(CallInfo {
+                        lease_id,
+                        call,
+                        caller,
+                        endpoint,
+                        method,
+                        input_sha256,
+                    }),
+            )
     }
 }
