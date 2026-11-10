@@ -142,9 +142,15 @@ describe("lease page: the holder makes a test call", () => {
   });
 
   it("anyone else, or nobody signed in, sees no button and why", async () => {
-    chain(lease());
+    // A 0x holder can instead sign in MetaMask while another wallet sends (test/signed-call.test.tsx).
+    chain(lease({ grantee: "agent.testnet" }));
     show("someone.testnet", vi.fn<WalletState["send"]>());
     expect(await screen.findByText(/Only the holder/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Make a test call" })).toBeNull();
+    cleanup();
+    chain(lease());
+    show("someone.testnet", vi.fn<WalletState["send"]>());
+    expect(await screen.findByRole("button", { name: "Sign in MetaMask and call" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Make a test call" })).toBeNull();
     cleanup();
     chain(lease());

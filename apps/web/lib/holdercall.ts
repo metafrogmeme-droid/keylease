@@ -42,27 +42,45 @@ export function testEndpoint(endpoints: readonly string[]): string {
 /** Whether the test call sends a prompt (and so needs a model) rather than reading a models listing. */
 export const sendsPrompt = (endpoints: readonly string[]) => !isListing(testEndpoint(endpoints));
 
+/** The test request: the same for `use_lease` and for the text a 0x holder signs (`use_lease_signed`). */
+export interface TestCallArgs {
+  readonly lease_id: string;
+  readonly endpoint: string;
+  readonly method: "GET" | "POST";
+  readonly body?: string;
+}
+
+export function testCallArgs(leaseId: string, endpoints: readonly string[], model: string): TestCallArgs {
+  const endpoint = testEndpoint(endpoints);
+  const m = model.trim();
+  const prompt = m === "" ? TEST_PROMPT : { model: m, ...TEST_PROMPT };
+  return isListing(endpoint)
+    ? { lease_id: leaseId, endpoint, method: "GET" }
+    : { lease_id: leaseId, endpoint, method: "POST", body: JSON.stringify(prompt) };
+}
+
 export function holderCallTx(
   contractId: string,
   leaseId: string,
   endpoints: readonly string[],
   model: string,
 ): Tx {
-  const endpoint = testEndpoint(endpoints);
-  const m = model.trim();
-  const prompt = m === "" ? TEST_PROMPT : { model: m, ...TEST_PROMPT };
-  const args = isListing(endpoint)
-    ? { lease_id: leaseId, endpoint, method: "GET" }
-    : { lease_id: leaseId, endpoint, method: "POST", body: JSON.stringify(prompt) };
+  const args = testCallArgs(leaseId, endpoints, model);
   return {
     receiverId: contractId,
     actions: [actionCreators.functionCall("use_lease", args, 300n * TGAS, CALL_DEPOSIT)],
   };
 }
 
+/** An EVM holder: the eth-implicit account of a 0x address (E-021). */
+export const isEvmHolder = (account: string) => /^0x[0-9a-f]{40}$/u.test(account);
+
 /** Why this account cannot make a call from this page, or null when it can. */
 export function callBlocked(lease: LeaseView, account: string | null): string | null {
-  if (account === null) return "Connect the holder's wallet to make a test call from this page.";
+  if (account === null)
+    return isEvmHolder(lease.grantee)
+      ? "Connect the holder's wallet to make a test call from this page, or any NEAR wallet to send a call the holder signs in MetaMask."
+      : "Connect the holder's wallet to make a test call from this page.";
   if (account !== lease.grantee)
     return `Only the holder (${lease.grantee}) can make a call; this wallet is ${account}.`;
   if (lease.status === "revoked") return "This lease is revoked, so no calls can be made.";

@@ -7,17 +7,27 @@ import {
   readCall,
   sendsPrompt,
   suggestedModel,
+  testCallArgs,
   testEndpoint,
   type CallResult,
 } from "../lib/holdercall.ts";
 import type { LeaseView } from "../lib/lease-view.ts";
 import { view } from "../lib/near-rpc.ts";
+import {
+  SignedCallStop,
+  canSignInMetaMask,
+  injectedEthereum,
+  signInMetaMask,
+  signedCallTx,
+} from "../lib/signedcall.ts";
 import { failureText, verdictMark } from "../lib/testkey.ts";
 import { useWallet } from "./WalletProvider.tsx";
 
 /**
  * "Make a test call" for the signed-in holder: one leased call from this page, then the answer's
  * HTTP status, OutLayer's request id, the tx and the calls left. `onCalled` reloads the lease.
+ * For a lease held by a 0x address, another connected NEAR wallet can send the call while the holder
+ * signs it in MetaMask (`use_lease_signed`, PR 11c).
  */
 export function HolderCall({
   lease,
@@ -28,11 +38,13 @@ export function HolderCall({
 }) {
   const w = useWallet();
   const [state, setState] = useState<
-    | { kind: "idle" | "working" }
+    | { kind: "idle" | "signing" | "working" }
     | { kind: "error"; text: string }
     | { kind: "done"; result: CallResult; left: number | null }
   >({ kind: "idle" });
-  const blocked = callBlocked(lease, w.accountId);
+  const own = callBlocked(lease, w.accountId);
+  const signed = own !== null && canSignInMetaMask(lease, w.accountId);
+  const blocked = signed ? null : own;
   const endpoint = testEndpoint(lease.endpoints);
   const prompt = sendsPrompt(lease.endpoints);
   const [model, setModel] = useState("");
@@ -54,10 +66,24 @@ export function HolderCall({
     };
   }, [blocked, prompt, lease.key_id]);
 
+  async function txFor() {
+    if (!signed) return holderCallTx(config.contractId, lease.lease_id, lease.endpoints, model);
+    const eth = injectedEthereum();
+    if (eth === null)
+      throw new SignedCallStop(
+        "MetaMask is not on this page: open it in MetaMask's browser, or with the MetaMask extension.",
+      );
+    setState({ kind: "signing" });
+    const args = testCallArgs(lease.lease_id, lease.endpoints, model);
+    const sig = await signInMetaMask(eth, (m, a) => view(config.rpcUrl, config.contractId, m, a), args);
+    return signedCallTx(config.contractId, args, sig);
+  }
+
   async function call() {
-    setState({ kind: "working" });
     try {
-      const [out] = await w.send([holderCallTx(config.contractId, lease.lease_id, lease.endpoints, model)]);
+      const tx = await txFor();
+      setState({ kind: "working" });
+      const [out] = await w.send([tx]);
       if (out === undefined) {
         setState({
           kind: "error",
@@ -69,9 +95,10 @@ export function HolderCall({
       const fresh = await onCalled().catch(() => null);
       setState({ kind: "done", result, left: fresh?.calls_left ?? null });
     } catch (e) {
-      setState({ kind: "error", text: failureText(e) });
+      setState({ kind: "error", text: e instanceof SignedCallStop ? e.message : failureText(e) });
     }
   }
+  const busy = state.kind === "working" || state.kind === "signing";
 
   return (
     <section className="holder-call card" aria-labelledby="holder-call-title">
@@ -80,10 +107,18 @@ export function HolderCall({
         <p className="hint">{blocked}</p>
       ) : (
         <>
-          <p className="hint">
-            One call on {endpoint} through the proxy, as the holder: 0.025 NEAR attached, unused compute
-            refunded, and it uses one of the lease&apos;s calls.
-          </p>
+          {signed ? (
+            <p className="hint">
+              One call on {endpoint} through the proxy for the holder {lease.grantee}: the holder signs it in
+              MetaMask, and this wallet ({w.accountId}) sends it with 0.025 NEAR attached, unused compute
+              refunded. It uses one of the lease&apos;s calls.
+            </p>
+          ) : (
+            <p className="hint">
+              One call on {endpoint} through the proxy, as the holder: 0.025 NEAR attached, unused compute
+              refunded, and it uses one of the lease&apos;s calls.
+            </p>
+          )}
           {blocked === null && prompt && (
             <label>
               Model (the API&apos;s model id; leave empty to send none)
@@ -98,18 +133,19 @@ export function HolderCall({
             </label>
           )}
           {blocked === null && (
-            <button
-              type="button"
-              className="primary"
-              disabled={state.kind === "working"}
-              onClick={() => void call()}
-            >
-              Make a test call
+            <button type="button" className="primary" disabled={busy} onClick={() => void call()}>
+              {signed ? "Sign in MetaMask and call" : "Make a test call"}
             </button>
           )}
         </>
       )}
-      <p role="status">{state.kind === "working" ? "Confirm the call in your wallet…" : ""}</p>
+      <p role="status">
+        {state.kind === "signing"
+          ? "Sign the call in MetaMask (a message, no transaction)…"
+          : state.kind === "working"
+            ? "Confirm the call in your wallet…"
+            : ""}
+      </p>
       {state.kind === "error" && <p role="alert">{state.text}</p>}
       {state.kind === "done" && (
         <div role="status" aria-label="Test call result">
@@ -130,7 +166,7 @@ export function HolderCall({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  use_lease tx {state.result.tx}
+                  {signed ? "use_lease_signed" : "use_lease"} tx {state.result.tx}
                 </a>
               </li>
             )}
