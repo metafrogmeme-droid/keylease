@@ -15,6 +15,8 @@ export interface LeaseView {
   readonly parent?: string | null;
   readonly depth?: number;
   readonly issuer?: string;
+  /** Highest nonce a signed call used (PR 11a); absent on contracts from before it. */
+  readonly last_nonce?: string;
 }
 
 /** "in 3 h", "in 2 days", "5 min ago": plain time to or since a nanosecond timestamp. */

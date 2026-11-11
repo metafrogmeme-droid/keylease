@@ -264,3 +264,8 @@ from crates.io stays as the fallback.
 - The lease record gains `last_nonce`, so this contract cannot upgrade one deployed before PR 10 in place
   (the layout differs since PR 10); testnet gets a new contract id (README upgrade policy).
 - SDK signers (11b) and the web flow (11c) follow.
+- 11c: on the lease page, a lease held by a `0x` account can be called from any other connected NEAR
+  wallet. MetaMask (the page's injected provider) signs only the `signed_call_message` text, after the
+  contract's `evm_holder_account` maps its account to the holder; the connected wallet sends
+  `use_lease_signed` and pays. No relayer and no key in the browser. The holder's own MetaMask
+  connection (ethereum-wallets) still makes a plain `use_lease`.

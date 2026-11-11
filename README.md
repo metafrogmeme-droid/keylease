@@ -39,6 +39,8 @@ mirror). Steps and expected lines from real runs are in [docs/VERIFY.md](docs/VE
 
 Full click-path (Key Pass, sub-leases, EVM grantee, panic button): [docs/VERIFY.md](docs/VERIFY.md).
 Real-wallet MetaMask mobile run 2026-11-04 (lease 8, HTTP 200): same doc.
+A lease held by a `0x` address can also be called from any connected NEAR wallet while the holder
+signs the call in MetaMask (lease page, `use_lease_signed`; no key or relayer in the browser).
 
 Quick no-wallet checks against the live host:
 
