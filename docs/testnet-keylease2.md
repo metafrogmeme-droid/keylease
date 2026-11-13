@@ -78,7 +78,7 @@ A one-call lease 9 on key 4 and one call ([lease tx 2uVro7SC…](https://testnet
 **Older production keys (ids 0 to 3) still hold the old key and now get 401 from the mock; use key 4.**
 Production code and config were not redeployed.
 
-## Still open: Patrick's MetaMask text signature (0x0acca...4ea8)
+## Patrick's MetaMask text signature (0x0acca...4ea8): done
 
 Lease 1 on keylease2 (key 0, holder `0x0acca2862903d0415639316574a5286d42854ea8`, 1 call, `GET /v1/models`,
 expires 2026-11-13 14:16 CET, create tx [Fkohg5Mm…](https://testnet.nearblocks.io/txns/Fkohg5MmiFYx2dZy5iDuSM3YCM4ZYmDi5YcHoMkhQG2x)).
@@ -97,15 +97,27 @@ request: GET /v1/models
 body sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ```
 
-Not yet run: `use_lease_signed` for lease 1 (waits for the signature). The hosted web app points at the production
-contract, so its "Make a test call" button does not see lease 1.
+**Run 12 Nov 2026, about 14:28 CET (Patrick signed, the operator account sent).** The signature recovered
+locally (EIP-191, keccak of the prefixed text, secp256k1) to `0x0acca2862903d0415639316574a5286d42854ea8`, the
+lease's holder, before anything was sent. `use_lease_signed` was then sent once on keylease2 with nonce 1, 0.025 NEAR attached:
+
+| Item              | Value                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| Tx                | [BiJV6K1e…](https://testnet.nearblocks.io/txns/BiJV6K1eUwEwjSDHPcwW4dW6wwEtLZE4GyxdWDp5EQXF)      |
+| `call_authorized` | lease 1, caller `0x0acca2862903d0415639316574a5286d42854ea8`, `/v1/models`, call 1                |
+| OutLayer request  | 31453                                                                                             |
+| Outcome           | `ok`, HTTP 200, body sha256 `214aad54128a1adf326d6f80eabaf98acc356f3572c24f871295b98d94b5bc0a`    |
+| Lease after       | `used_up`, 1 of 1 used, 0 left; `kl receipts --lease 1`: `call 1 ok /v1/models by 0x0acca...4ea8` |
+
+The hosted web app points at the production contract, so its "Make a test call" button does not see lease 1;
+the signed call was sent from the operator account instead (the contract takes the holder from the signature).
 
 ## Balances after the run (testnet NEAR)
 
 | Account                                      | Now                         |
 | -------------------------------------------- | --------------------------- |
-| `keylease-spike-3298edc1.testnet` (deployer) | 5.49 (5.56 before this run) |
+| `keylease-spike-3298edc1.testnet` (deployer) | 5.48 (5.56 before this run) |
 | `keylease2.keylease-spike-3298edc1.testnet`  | 5.03                        |
 | `keylease.keylease-spike-3298edc1.testnet`   | 5.13                        |
 
-Spent in this run about 0.07 NEAR net of refunds (storage and deposits kept by the contracts, plus gas).
+Spent in this run about 0.08 NEAR net of refunds (storage and deposits kept by the contracts, plus gas).
