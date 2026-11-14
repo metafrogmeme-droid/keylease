@@ -1,43 +1,42 @@
 /*
- * Theme A, "Void": deep black with the RUNECLAW cyan (#030409 / #3fb6ff from the media-kit brand guide).
+ * Theme B, "Graphite": warm graphite with a violet / indigo glow. Same tokens as theme A, other values.
  * A theme is only this file. Swap it and nothing else changes.
  */
 :root {
   color-scheme: dark;
 
-  --rc-bg: #030409;
-  --rc-raised: #0a0e18;
-  --rc-surface: #0d1320;
-  --rc-surface-2: #151d30;
-  --rc-line: #1f2b45;
-  --rc-control: #5a74aa; /* border of inputs and buttons, 3:1 against every surface */
-  --rc-line-strong: #34476e;
+  --rc-bg: #0e0f14;
+  --rc-raised: #15161d;
+  --rc-surface: #1a1b24;
+  --rc-surface-2: #242634;
+  --rc-line: #2f3144;
+  --rc-control: #7a7da6; /* border of inputs and buttons, 3:1 against every surface */
+  --rc-line-strong: #4a4d6a;
 
-  --rc-text: #eaf2ff;
-  --rc-muted: #a9b8d0;
-  --rc-accent: #3fb6ff;
-  --rc-accent-hi: #8fd9ff;
-  --rc-accent-deep: #1b6aa8;
-  --rc-on-accent: #031018;
-  --rc-link: #8fd9ff;
+  --rc-text: #f3f2fb;
+  --rc-muted: #b9bacd;
+  --rc-accent: #8f80ff;
+  --rc-accent-hi: #c0b8ff;
+  --rc-accent-deep: #5b4bd6;
+  --rc-on-accent: #0d0a22;
+  --rc-link: #c0b8ff;
 
-  --rc-radius: 0.75rem;
-  --rc-radius-lg: 1rem;
+  --rc-radius: 1.1rem;
+  --rc-radius-lg: 1.5rem;
   --rc-radius-pill: 999px;
 
-  --rc-card-bg: linear-gradient(180deg, rgba(21, 29, 48, 0.92), rgba(13, 19, 32, 0.92));
-  --rc-card-border: var(--rc-line);
-  --rc-card-shadow: 0 1px 0 rgba(143, 217, 255, 0.06) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.8);
-  --rc-card-blur: none;
-  --rc-btn-bg: linear-gradient(135deg, #8fd9ff 0%, #3fb6ff 55%, #2a8fe0 100%);
-  --rc-btn-glow: 0 0 0 1px rgba(143, 217, 255, 0.5), 0 8px 28px -8px rgba(63, 182, 255, 0.65);
-  --rc-title-gradient: linear-gradient(100deg, #eaf2ff 20%, #8fd9ff 70%, #3fb6ff 100%);
-  --rc-glow: rgba(63, 182, 255, 0.55);
-  --rc-mark-opacity: 0.2;
-  --rc-focus: #8fd9ff;
+  --rc-card-bg: linear-gradient(160deg, rgba(36, 38, 52, 0.92), rgba(26, 27, 36, 0.92));
+  --rc-card-border: rgba(192, 184, 255, 0.14);
+  --rc-card-shadow: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 20px 48px -24px rgba(8, 6, 30, 0.9);
+  --rc-card-blur: blur(14px) saturate(1.2);
+  --rc-btn-bg: linear-gradient(135deg, #c0b8ff 0%, #8f80ff 50%, #7a6bf5 100%);
+  --rc-btn-glow: 0 0 0 1px rgba(192, 184, 255, 0.45), 0 10px 32px -10px rgba(143, 128, 255, 0.7);
+  --rc-title-gradient: linear-gradient(100deg, #f3f2fb 15%, #c0b8ff 62%, #a99bff 100%);
+  --rc-glow: rgba(143, 128, 255, 0.55);
+  --rc-mark-opacity: 0.09;
+  --rc-focus: #c0b8ff;
   --rc-backdrop:
-    radial-gradient(52rem 26rem at 50% -9rem, rgba(63, 182, 255, 0.28), transparent 70%),
-    radial-gradient(28rem 20rem at 105% 18%, rgba(27, 106, 168, 0.32), transparent 70%),
-    linear-gradient(rgba(143, 217, 255, 0.05) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(90deg, rgba(143, 217, 255, 0.05) 1px, transparent 1px) 0 0 / 44px 44px;
+    radial-gradient(40rem 26rem at -5% -4%, rgba(143, 128, 255, 0.44), transparent 66%),
+    radial-gradient(34rem 24rem at 105% 10%, rgba(99, 102, 241, 0.36), transparent 66%),
+    radial-gradient(30rem 22rem at 60% 108%, rgba(214, 90, 240, 0.18), transparent 70%);
 }
