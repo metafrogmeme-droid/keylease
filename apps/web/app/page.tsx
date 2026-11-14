@@ -1,3 +1,4 @@
+import { HelpPanel } from "../components/HelpPanel.tsx";
 import { Onboarding } from "../components/Onboarding.tsx";
 
 export default function Home() {
@@ -10,7 +11,7 @@ export default function Home() {
           lease with a call quota, endpoints and an expiry, and you can revoke it in one click.
         </p>
       </div>
-      <Onboarding />
+      <Onboarding help={<HelpPanel />} />
     </>
   );
 }
