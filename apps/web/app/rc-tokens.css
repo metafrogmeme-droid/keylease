@@ -1,0 +1,41 @@
+/*
+ * RUNECLAW design system, structural tokens (v1). The same file ships in KeyLease and BotChainSeal.
+ * Colours that carry meaning (warning, ok, error) live here, not in the theme, so a theme swap
+ * can never weaken a network banner or a verdict colour. Brand colours and surfaces live in rc-theme.css.
+ */
+:root {
+  /* Type: system fonts only (no font download, no third-party request). */
+  --rc-font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rc-font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+  --rc-fs-xs: 0.78rem;
+  --rc-fs-sm: 0.9rem;
+  --rc-fs-md: 1rem;
+  --rc-fs-lg: 1.2rem;
+  --rc-fs-xl: 1.55rem;
+  --rc-fs-2xl: clamp(2rem, 6vw + 0.5rem, 3.6rem);
+  --rc-lh: 1.55;
+
+  /* Spacing, 4px grid. */
+  --rc-s1: 0.25rem;
+  --rc-s2: 0.5rem;
+  --rc-s3: 0.75rem;
+  --rc-s4: 1rem;
+  --rc-s5: 1.5rem;
+  --rc-s6: 2rem;
+  --rc-s7: 3rem;
+
+  --rc-measure: 56rem;
+  --rc-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --rc-dur: 160ms;
+  --rc-tap: 2.75rem; /* minimum touch target */
+
+  /* Meaning colours, identical in every theme. Pairs are checked for AA in the tests. */
+  --rc-warn: #ffd166;
+  --rc-warn-bg: #2b1e04;
+  --rc-warn-text: #fff1cc;
+  --rc-danger: #ff8f85;
+  --rc-danger-bg: #2f0f0d;
+  --rc-ok: #52e0a0;
+  --rc-ok-bg: #08241a;
+}
