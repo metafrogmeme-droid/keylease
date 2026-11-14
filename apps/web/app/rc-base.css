@@ -1,0 +1,390 @@
+/*
+ * RUNECLAW design system, base layer (v1). The same file ships in KeyLease and BotChainSeal.
+ * Reads only --rc-* tokens from rc-tokens.css and rc-theme.css. App-specific rules live in each app.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--rc-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  min-height: 100vh;
+  background: var(--rc-bg);
+  color: var(--rc-text);
+  font: var(--rc-fs-md) / var(--rc-lh) var(--rc-font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* The ambient glow sits behind everything and never takes a click. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--rc-backdrop);
+}
+
+main {
+  width: 100%;
+  max-width: var(--rc-measure);
+  margin: 0 auto;
+  padding: var(--rc-s5) var(--rc-s4) var(--rc-s7);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--rc-s3);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+h1 {
+  font-size: var(--rc-fs-2xl);
+  color: var(--rc-text);
+}
+
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  h1 {
+    background: var(--rc-title-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+h2 {
+  font-size: var(--rc-fs-lg);
+}
+
+p {
+  margin: 0 0 var(--rc-s3);
+}
+
+a {
+  color: var(--rc-link);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color var(--rc-dur) var(--rc-ease);
+}
+
+a:hover {
+  color: var(--rc-text);
+}
+
+:focus-visible {
+  outline: 3px solid var(--rc-focus);
+  outline-offset: 3px;
+  border-radius: 0.35rem;
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--rc-font-mono);
+}
+
+code {
+  font-size: 0.88em;
+  padding: 0.08em 0.38em;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--rc-line);
+  color: var(--rc-text);
+}
+
+pre {
+  overflow-x: auto;
+  margin: var(--rc-s3) 0;
+  padding: var(--rc-s3) var(--rc-s4);
+  border-radius: var(--rc-radius);
+  background: var(--rc-raised);
+  border: 1px solid var(--rc-line);
+  color: var(--rc-text);
+  font-size: var(--rc-fs-sm);
+}
+
+pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Brand bar: the RUNECLAW wordmark and the product name --- */
+.rc-appbar {
+  display: flex;
+  align-items: center;
+  gap: var(--rc-s3);
+  flex-wrap: wrap;
+  margin: 0 0 var(--rc-s5);
+}
+
+.rc-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rc-s3);
+  text-decoration: none;
+}
+
+.rc-brand img {
+  display: block;
+  height: 1.7rem;
+  width: auto;
+}
+
+.rc-product {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--rc-s3);
+  border: 1px solid var(--rc-line-strong);
+  border-radius: var(--rc-radius-pill);
+  background: var(--rc-surface);
+  color: var(--rc-muted);
+  font-size: var(--rc-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* --- Network banner: always visible, never themed away. Amber, strong border, high contrast. --- */
+.banner {
+  margin: 0 0 var(--rc-s5);
+  padding: var(--rc-s3) var(--rc-s4);
+  border: 1px solid var(--rc-warn);
+  border-left-width: 6px;
+  border-radius: var(--rc-radius);
+  background: var(--rc-warn-bg);
+  color: var(--rc-warn-text);
+  font-size: var(--rc-fs-md);
+  box-shadow: 0 0 32px -12px var(--rc-warn);
+}
+
+.banner b,
+.banner strong {
+  color: #ffffff;
+}
+
+.banner code {
+  color: var(--rc-warn-text);
+  background: rgba(255, 209, 102, 0.1);
+  border-color: rgba(255, 209, 102, 0.35);
+}
+
+.banner a {
+  color: #ffffff;
+}
+
+/* Mainnet is real value: same amber copy, coral frame. */
+.banner--mainnet {
+  border-color: var(--rc-danger);
+  background: var(--rc-danger-bg);
+  color: #ffe6e3;
+  box-shadow: 0 0 32px -12px var(--rc-danger);
+}
+
+.banner--mainnet code {
+  color: #ffe6e3;
+  background: rgba(255, 143, 133, 0.1);
+  border-color: rgba(255, 143, 133, 0.4);
+}
+
+/* Full-width bar variant, pinned to the top of the page. */
+.banner--bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin: 0;
+  padding: var(--rc-s2) var(--rc-s4);
+  border-width: 0 0 2px;
+  border-radius: 0;
+  text-align: center;
+  font-size: var(--rc-fs-sm);
+  box-shadow: 0 8px 24px -12px var(--rc-warn);
+}
+
+/* --- Cards --- */
+.rc-card,
+.card {
+  position: relative;
+  border: 1px solid var(--rc-card-border);
+  border-radius: var(--rc-radius);
+  background: var(--rc-card-bg);
+  box-shadow: var(--rc-card-shadow);
+  -webkit-backdrop-filter: var(--rc-card-blur);
+  backdrop-filter: var(--rc-card-blur);
+  padding: var(--rc-s4);
+}
+
+/* --- Buttons: secondary by default, primary gets the brand gradient and glow --- */
+button,
+.rc-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rc-s2);
+  min-height: var(--rc-tap);
+  padding: 0 var(--rc-s4);
+  border: 1px solid var(--rc-control);
+  border-radius: var(--rc-radius);
+  background: var(--rc-surface-2);
+  color: var(--rc-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform var(--rc-dur) var(--rc-ease),
+    border-color var(--rc-dur) var(--rc-ease),
+    box-shadow var(--rc-dur) var(--rc-ease),
+    filter var(--rc-dur) var(--rc-ease);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 22px -8px var(--rc-glow);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button.primary {
+  border-color: transparent;
+  background: var(--rc-btn-bg);
+  color: var(--rc-on-accent);
+  box-shadow: var(--rc-btn-glow);
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  border-color: transparent;
+}
+
+button.danger {
+  border-color: var(--rc-danger);
+  background: var(--rc-danger-bg);
+  color: #ffe6e3;
+}
+
+button.danger:hover:not(:disabled) {
+  box-shadow: 0 0 22px -8px var(--rc-danger);
+  border-color: var(--rc-danger);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  background: var(--rc-raised);
+  border-color: var(--rc-line);
+  color: var(--rc-muted);
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+/* --- Form controls --- */
+input,
+select,
+textarea {
+  min-height: var(--rc-tap);
+  padding: var(--rc-s2) var(--rc-s3);
+  border: 1px solid var(--rc-control);
+  border-radius: var(--rc-radius);
+  background: var(--rc-raised);
+  color: var(--rc-text);
+  font: inherit;
+  font-weight: 400;
+  transition:
+    border-color var(--rc-dur) var(--rc-ease),
+    box-shadow var(--rc-dur) var(--rc-ease);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--rc-muted);
+  opacity: 1;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--rc-accent);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--rc-focus);
+  outline-offset: 2px;
+  border-color: var(--rc-focus);
+}
+
+input[type="file"] {
+  min-height: 0;
+  padding: var(--rc-s2);
+  color: var(--rc-muted);
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: var(--rc-s3);
+  min-height: 2.25rem;
+  padding: 0 var(--rc-s3);
+  border: 1px solid var(--rc-control);
+  border-radius: var(--rc-radius);
+  background: var(--rc-surface-2);
+  color: var(--rc-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  min-height: 0;
+  accent-color: var(--rc-accent);
+}
+
+/* --- Tables --- */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--rc-s2) var(--rc-s3) var(--rc-s2) 0;
+  border-bottom: 1px solid var(--rc-line);
+}
+
+th {
+  color: var(--rc-muted);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
