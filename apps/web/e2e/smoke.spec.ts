@@ -43,8 +43,21 @@ test("first visit: banner, three-step strip, faucet link, strict CSP, nothing th
   await expect(steps.nth(1)).toContainText("Add key");
   await expect(steps.nth(2)).toContainText("Share");
 
+  const wordmark = page.getByRole("link", { name: "RUNECLAW" });
+  const site = page
+    .getByRole("navigation", { name: "Company" })
+    .getByRole("link", { name: "humanoid-traders.com" });
   const faucet = page.getByRole("link", { name: /testnet faucet/ });
+  await expect(wordmark).toHaveAttribute("href", "https://www.humanoid-traders.com");
+  await expect(wordmark).not.toHaveAttribute("target");
+  await expect(site).toHaveAttribute("href", "https://www.humanoid-traders.com");
+  await expect(site).toHaveAttribute("target", "_blank");
+  await expect(site).toHaveAttribute("rel", "noopener noreferrer");
   await expect(faucet).toHaveAttribute("rel", "noopener noreferrer");
+  await page.keyboard.press("Tab");
+  await expect(wordmark).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(site).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(faucet).toBeFocused();
 
