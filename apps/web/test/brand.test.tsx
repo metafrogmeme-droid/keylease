@@ -74,4 +74,15 @@ describe("RUNECLAW branding", () => {
     expect(html.split(blank).length).toBe(3);
     expect(html.indexOf("<nav")).toBeLessThan(html.indexOf("<footer"));
   });
+
+  it("adds a reduced-motion-aware backdrop, entrance and shimmer motion", () => {
+    const base = app("rc-base.css");
+    expect(base).toContain("@keyframes rc-grid-drift");
+    expect(base).toContain("@keyframes rc-aurora");
+    expect(base).toContain("@keyframes rc-enter");
+    expect(base).toContain("@keyframes rc-shimmer");
+    expect(base).toContain("animation-iteration-count: 1 !important");
+    expect(base).toContain("animation: none !important");
+    expect(base).toContain(".rc-shimmer");
+  });
 });
