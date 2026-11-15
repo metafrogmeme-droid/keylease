@@ -63,4 +63,15 @@ describe("RUNECLAW branding", () => {
     expect(base).toMatch(/:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--rc-focus\)/);
     expect(base).toContain("prefers-reduced-motion");
   });
+
+  it("links the wordmark and a site nav and footer to the company website", () => {
+    const site = "https://www.humanoid-traders.com";
+    expect(html).toContain(`<a class="rc-brand" href="${site}">`);
+    expect(html).not.toMatch(/class="rc-brand"[^>]*target=/);
+    expect(html).toMatch(/<nav class="rc-nav" aria-label="Company">/);
+    expect(html).toMatch(/<footer class="rc-footer">/);
+    const blank = `<a href="${site}" target="_blank" rel="noopener noreferrer">humanoid-traders.com</a>`;
+    expect(html.split(blank).length).toBe(3);
+    expect(html.indexOf("<nav")).toBeLessThan(html.indexOf("<footer"));
+  });
 });
