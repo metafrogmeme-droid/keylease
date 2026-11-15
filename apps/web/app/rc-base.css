@@ -34,6 +34,126 @@ body::before {
   background: var(--rc-backdrop);
 }
 
+/* Animated backdrop: the grid drifts and a soft aurora breathes behind the app. */
+body::before {
+  background-size:
+    auto,
+    auto,
+    44px 44px,
+    44px 44px;
+  animation: rc-grid-drift 48s linear infinite;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: -15%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(36rem 22rem at 18% 8%, rgba(63, 182, 255, 0.16), transparent 65%),
+    radial-gradient(30rem 18rem at 88% 78%, rgba(27, 106, 168, 0.2), transparent 70%);
+  animation: rc-aurora 18s ease-in-out infinite alternate;
+}
+
+@keyframes rc-grid-drift {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      0 0,
+      0 0,
+      44px 44px,
+      44px 44px;
+  }
+}
+
+@keyframes rc-aurora {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.72;
+  }
+  to {
+    transform: translate3d(-2.5%, 2%, 0) scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes rc-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rc-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Entrance is for chrome only — never the network banner. */
+.rc-appbar,
+.hero,
+header > h1,
+.rc-footer {
+  animation: rc-enter 0.55s var(--rc-ease) both;
+}
+
+.hero,
+header > h1 {
+  animation-delay: 0.06s;
+}
+
+.rc-footer {
+  animation-delay: 0.12s;
+}
+
+.rc-brand {
+  transition:
+    filter var(--rc-dur) var(--rc-ease),
+    transform var(--rc-dur) var(--rc-ease);
+}
+
+.rc-brand:hover {
+  filter: drop-shadow(0 0 10px var(--rc-glow));
+  transform: translateY(-1px);
+}
+
+.rc-help {
+  transition:
+    border-color var(--rc-dur) var(--rc-ease),
+    box-shadow var(--rc-dur) var(--rc-ease);
+}
+
+.rc-help:hover {
+  border-color: var(--rc-line-strong);
+  box-shadow: 0 0 28px -12px var(--rc-glow);
+}
+
+.rc-shimmer {
+  background-image: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(63, 182, 255, 0.28) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: 200% 0;
+  animation: rc-shimmer 1.4s linear infinite;
+}
+
 main {
   width: 100%;
   max-width: var(--rc-measure);
@@ -399,6 +519,17 @@ th {
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  body::before,
+  body::after,
+  .rc-appbar,
+  .hero,
+  header > h1,
+  .rc-footer,
+  .rc-shimmer {
+    animation: none !important;
   }
 }
 
