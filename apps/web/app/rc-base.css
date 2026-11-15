@@ -166,6 +166,19 @@ pre code {
   letter-spacing: 0.04em;
 }
 
+.rc-nav {
+  margin-left: auto;
+  font-size: var(--rc-fs-xs);
+}
+
+.rc-footer {
+  margin: var(--rc-s5) 0 0;
+  padding: var(--rc-s4) 0 0;
+  border-top: 1px solid var(--rc-line);
+  font-size: var(--rc-fs-xs);
+  color: var(--rc-muted);
+}
+
 /* --- Network banner: always visible, never themed away. Amber, strong border, high contrast. --- */
 .banner {
   margin: 0 0 var(--rc-s5);

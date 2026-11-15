@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { BrandHeader } from "../components/BrandHeader.tsx";
+import { BrandFooter, BrandHeader } from "../components/BrandHeader.tsx";
 import { TestnetBanner } from "../components/TestnetBanner.tsx";
 import { WalletProvider } from "../components/WalletProvider.tsx";
 import { config } from "../lib/config.ts";
@@ -27,6 +27,7 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
             <BrandHeader />
             {children}
           </main>
+          <BrandFooter />
         </WalletProvider>
       </body>
     </html>
