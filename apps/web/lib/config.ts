@@ -13,7 +13,7 @@ export interface WebConfig {
   readonly reownProjectId: string | null;
 }
 
-export const FAUCET_URL = "https://docs.near.org/tools/faucet";
+export const FAUCET_URL = "https://docs.near.org/getting-started/faucet";
 export const DEFAULT_RPC = "https://rpc.testnet.near.org";
 export const PUBKEY_RELAY = "/api";
 
