@@ -157,7 +157,7 @@ docs/VERIFY.md 2 and 2b. The web app is live at https://keylease.humanoid-trader
 mirror keylease.vercel.app, which MetaMask's scanner flags, so use the custom domain) and is
 hosted on Vercel (static pages plus one same-origin relay for OutLayer's keystore key, which
 browsers cannot fetch directly): docs/VERIFY.md "Hosted on Vercel". Testnet NEAR for gas: the
-[NEAR testnet faucet](https://docs.near.org/tools/faucet).
+[NEAR testnet faucet](https://docs.near.org/getting-started/faucet).
 
 ## Baseline vs built in the window
 
